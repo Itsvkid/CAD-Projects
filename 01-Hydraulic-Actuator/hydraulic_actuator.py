@@ -13,7 +13,7 @@ Date: 2026-08-22
 Integration: Connects to turbofan cycle model for control actuation analysis
 """
 
-from cadquery import Cq, Assembly
+import cadquery as cq
 import json
 from pathlib import Path
 
@@ -53,51 +53,63 @@ class HydraulicActuator:
     def create_cylinder_body(self):
         """Create hollow cylinder body with internal bore."""
         cylinder = (
-            Cq()
-            .workplane()
+            cq.Workplane("XY")
             .circle(self.cylinder_od / 2)
             .extrude(self.stroke + 50)  # Extra length for end fittings
             .faces(">Z")
+            .workplane()
             .circle(self.bore / 2)
-            .pocket(self.stroke)  # Internal bore
+            .cutBlind(-self.stroke)  # Internal bore
             .faces("<Z")
             .workplane()
             .circle(self.bore / 2)
-            .pocket(25)  # End cap thickness
+            .cutBlind(-25)  # End cap thickness
         )
         return cylinder
 
     def create_piston_rod(self):
-        """Create piston rod with seal groove and end fitting."""
+        """Create piston rod with an end pocket standing in for a seal
+        groove. Not a true circumferential O-ring groove (that cuts
+        radially into the rod's cylindrical surface, not axially into its
+        end face) -- this is a simplified stand-in, sized to actually fit
+        within the rod's own diameter rather than the original's cutter
+        (rod + 2*groove_width, wider than the rod itself, which would have
+        machined off the whole tip instead of leaving a groove)."""
+        groove_radius = max(self.rod / 2 - self.rod_seal_groove_width, 1.0)
         rod = (
-            Cq()
-            .workplane()
+            cq.Workplane("XY")
             .circle(self.rod / 2)
             .extrude(self.stroke)
-            # Seal groove (simplified as groove at end)
             .faces(">Z")
             .workplane()
-            .circle((self.rod + self.rod_seal_groove_width * 2) / 2)
-            .pocket(self.rod_seal_groove_depth)
+            .circle(groove_radius)
+            .cutBlind(-self.rod_seal_groove_depth)
         )
         return rod
 
     def create_clevis_end(self):
-        """Create clevis-end mounting for aircraft attachment."""
+        """Create clevis-end mounting for aircraft attachment: a mounting
+        block (not a true forked yoke -- that's a separate modelling task)
+        with a through-bore for the rod pin and two bolt holes, all drilled
+        through the same thickness direction so they sit on one consistent
+        workplane."""
+        half_height = (self.rod + 10) / 2
         clevis = (
-            Cq()
-            .workplane()
+            cq.Workplane("XY")
             .box(self.rod + 10, self.clevis_thickness, self.rod + 10)
-            .faces("<Z")
+            .faces(">Y")
             .workplane()
-            .circle(self.rod / 2 + 2)  # Hole for rod attachment
-            .pocket(self.clevis_thickness)
-            # Attachment holes (typical: 2 holes)
-            .faces("(-Z or -X)")
+            .circle(self.rod / 2 + 2)  # bore for rod/pin attachment
+            .cutThruAll()
+        )
+        clevis = (
+            clevis.faces(">Y")
             .workplane()
-            .circle(4)  # M8 bolt hole
-            .pushPoints([(self.rod + 8, -5), (self.rod + 8, 5)])
-            .hole(8, depth=20)
+            .pushPoints([
+                (0, min(10.0, half_height - 4)),
+                (0, -min(10.0, half_height - 4)),
+            ])
+            .hole(6)  # M6 bolt holes, aircraft mounting
         )
         return clevis
 
@@ -105,16 +117,14 @@ class HydraulicActuator:
         """Create A/B hydraulic ports for pressure/return."""
         # Port A (pressure) - typically on cap end
         port_a = (
-            Cq()
-            .workplane()
+            cq.Workplane("XY")
             .circle(self.port_diameter / 2)
             .extrude(10)
         )
 
         # Port B (return) - typically on rod end
         port_b = (
-            Cq()
-            .workplane()
+            cq.Workplane("XY")
             .circle(self.port_diameter / 2)
             .extrude(10)
         )
@@ -129,13 +139,13 @@ class HydraulicActuator:
         clevis = self.create_clevis_end()
 
         # Create assembly
-        asm = Assembly()
-        asm.add(cylinder, name="cylinder_body", color=Cq.Color("silver"))
-        asm.add(rod, name="piston_rod", color=Cq.Color("gray"))
+        asm = cq.Assembly()
+        asm.add(cylinder, name="cylinder_body", color=cq.Color("gray70"))
+        asm.add(rod, name="piston_rod", color=cq.Color("gray50"))
 
         # Position clevis at rod end
         clevis_positioned = clevis.translate((0, 0, self.stroke + 10))
-        asm.add(clevis_positioned, name="clevis_end", color=Cq.Color("darkgray"))
+        asm.add(clevis_positioned, name="clevis_end", color=cq.Color("gray30"))
 
         return asm
 
@@ -154,9 +164,12 @@ class HydraulicActuator:
         rod = self.create_piston_rod()
         clevis = self.create_clevis_end()
 
-        cylinder.save(f"{output_dir}/01_cylinder_body.step")
-        rod.save(f"{output_dir}/02_piston_rod.step")
-        clevis.save(f"{output_dir}/03_clevis_end.step")
+        # Workplane has no .save() -- that's an Assembly method (used in
+        # export_step above); a bare shape/Workplane exports through
+        # cq.exporters.export instead.
+        cq.exporters.export(cylinder, f"{output_dir}/01_cylinder_body.step")
+        cq.exporters.export(rod, f"{output_dir}/02_piston_rod.step")
+        cq.exporters.export(clevis, f"{output_dir}/03_clevis_end.step")
 
         print(f"✓ Individual parts saved to {output_dir}/")
         return output_dir
