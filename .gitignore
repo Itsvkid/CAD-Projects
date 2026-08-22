@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CAD generated files (keep source code, ignore output)
+*.step
+*.stp
+*.iges
+*.igs
+*.stl
+*.obj
+output/
+parts/
+*.pdf
+
+# BOM and specs (auto-generated)
+BOM.json
+specifications.txt
+*.bom
+
+# Test outputs
+test_output/
+*.log
+
+# Cache
+*.cache
+.pytest_cache/
