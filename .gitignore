@@ -46,6 +46,7 @@ parts/
 
 # BOM and specs (auto-generated)
 BOM.json
+BOM_family.json
 specifications.txt
 *.bom
 
