@@ -37,16 +37,33 @@ from pathlib import Path
 
 def involute_gear_profile_points(num_teeth, module, pressure_angle_deg=20.0,
                                   points_per_flank=8, addendum_factor=1.0,
-                                  dedendum_factor=1.25, root_arc_points=4):
+                                  dedendum_factor=1.25, root_arc_points=4,
+                                  tip_arc_points=2):
     """Full closed outline of an external spur gear (list of (x, y) tuples
     in mm), built from the standard involute-function construction: each
-    tooth flank is the true involute of the base circle, sampled and
-    joined with straight segments (a polygon approximation of the curve,
-    not exact to the micron). Root fillets are a plain circular arc at the
-    dedendum radius, not the true trochoidal fillet a hobbing cutter
-    leaves. Verified (see create_gear's docstring) to extrude into exactly
-    one solid with no self-intersecting wire, and to have min/max radius
-    matching the computed dedendum/addendum radii exactly.
+    tooth flank is the true involute of the base circle, sampled and joined
+    with straight segments (a polygon approximation of the curve, not exact
+    to the micron). Root fillets are a plain circular arc at the dedendum
+    radius, not the true trochoidal fillet a hobbing cutter leaves.
+
+    The half tooth angle at radius r is
+
+        psi(r) = pi/(2N) + inv(alpha) - inv(alpha_r)
+
+    where inv(x) = tan(x) - x and alpha_r is the pressure angle at r, so
+    cos(alpha_r) = r_b/r. The two involute terms have *opposite* signs: the
+    tooth is exactly pi/(2N) wide at the pitch circle, wider below it, and
+    narrower above it, coming to its narrowest at the tip. Getting that
+    sign wrong -- writing pi/(2N) - inv(alpha) + inv(alpha_r) -- still gives
+    the right thickness at the pitch circle, which is why it survives a
+    check of pitch dimensions, but it flares every tooth outward into an
+    hourglass whose flanks cross. The resulting wire self-intersects, and
+    the solid extruded from it fails BRepCheck_Analyzer and will not
+    triangulate: its end face renders and exports with holes in it.
+
+    Points come out in counter-clockwise order, tooth by tooth: up the
+    trailing flank, across the tip land, down the leading flank, then round
+    the root arc to the next tooth.
     """
     N = num_teeth
     m = module
@@ -58,9 +75,13 @@ def involute_gear_profile_points(num_teeth, module, pressure_angle_deg=20.0,
     r_d = r_p - dedendum_factor * m
 
     inv_alpha = math.tan(alpha) - alpha
-    half_tooth_pitch_angle = math.pi / (2 * N)
-    angle_offset = half_tooth_pitch_angle - inv_alpha
+    # Half tooth angle extrapolated back to the base circle, where the
+    # involute has zero polar angle. Every psi below is this minus inv(alpha_r).
+    half_angle_at_base = math.pi / (2 * N) + inv_alpha
 
+    # The involute exists only outside the base circle. Where the dedendum
+    # falls below it, the flank starts at r_b and a radial segment drops to
+    # the root; where the dedendum is above it, the flank starts at r_d.
     r_start = max(r_b, r_d)
     t_start = math.sqrt(max((r_start / r_b) ** 2 - 1.0, 0.0))
     t_max = math.sqrt((r_a / r_b) ** 2 - 1.0)
@@ -70,40 +91,60 @@ def involute_gear_profile_points(num_teeth, module, pressure_angle_deg=20.0,
         phi = t - math.atan(t)
         return r, phi
 
-    ts = [t_start + (t_max - t_start) * i / (points_per_flank - 1) for i in range(points_per_flank)]
+    def half_angle(t):
+        return half_angle_at_base - (t - math.atan(t))
 
-    r0, phi0 = involute_point(t_start)
-    root_half_angle = angle_offset + phi0
+    ts = [t_start + (t_max - t_start) * i / (points_per_flank - 1)
+          for i in range(points_per_flank)]
+
+    psi_start = half_angle(t_start)
+    psi_tip = half_angle(t_max)
+    if psi_tip <= 0.0:
+        raise ValueError(
+            f"{N} teeth at {pressure_angle_deg} deg pressure angle and "
+            f"addendum factor {addendum_factor} gives a pointed tooth "
+            "(zero land at the tip)")
+    if 2 * psi_start >= 2 * math.pi / N:
+        raise ValueError(
+            f"{N} teeth leaves no root gap between adjacent teeth")
+
+    def polar(r, ang):
+        return (r * math.cos(ang), r * math.sin(ang))
 
     all_points = []
     for i in range(N):
         c = 2 * math.pi * i / N
-
-        if r_d < r_b:
-            ang = c + root_half_angle
-            all_points.append((r_d * math.cos(ang), r_d * math.sin(ang)))
-
-        for t in ts:
-            r, phi = involute_point(t)
-            ang = c + angle_offset + phi
-            all_points.append((r * math.cos(ang), r * math.sin(ang)))
-
-        for t in reversed(ts):
-            r, phi = involute_point(t)
-            ang = c - angle_offset - phi
-            all_points.append((r * math.cos(ang), r * math.sin(ang)))
-
-        if r_d < r_b:
-            ang = c - root_half_angle
-            all_points.append((r_d * math.cos(ang), r_d * math.sin(ang)))
-
         next_c = 2 * math.pi * (i + 1) / N
-        start_ang = c - root_half_angle
-        end_ang = next_c + root_half_angle
+
+        # Radial drop to the root, trailing side, when the involute cannot
+        # reach the dedendum circle on its own.
+        if r_d < r_start:
+            all_points.append(polar(r_d, c - psi_start))
+
+        # Trailing flank, root to tip. Angle increases as psi shrinks.
+        for t in ts:
+            r, _ = involute_point(t)
+            all_points.append(polar(r, c - half_angle(t)))
+
+        # Tip land, an arc at the addendum radius across the top of the tooth.
+        for k in range(1, tip_arc_points + 1):
+            frac = k / (tip_arc_points + 1)
+            all_points.append(polar(r_a, c - psi_tip + 2 * psi_tip * frac))
+
+        # Leading flank, tip back down to root.
+        for t in reversed(ts):
+            r, _ = involute_point(t)
+            all_points.append(polar(r, c + half_angle(t)))
+
+        if r_d < r_start:
+            all_points.append(polar(r_d, c + psi_start))
+
+        # Root arc through to where the next tooth begins.
+        start_ang = c + psi_start
+        end_ang = next_c - psi_start
         for k in range(1, root_arc_points + 1):
             frac = k / (root_arc_points + 1)
-            ang = start_ang + (end_ang - start_ang) * frac
-            all_points.append((r_d * math.cos(ang), r_d * math.sin(ang)))
+            all_points.append(polar(r_d, start_ang + (end_ang - start_ang) * frac))
 
     geom = dict(pitch_radius=r_p, base_radius=r_b, addendum_radius=r_a,
                 dedendum_radius=r_d, center_module=m, num_teeth=N)
@@ -342,17 +383,42 @@ class GearboxDesign:
         family of projects' convention (see e.g. 01-Hydraulic-Actuator's
         seal-groove simplification)."""
         wall = 6.0
-        depth = self.face_width_mm + 20.0
         c = self.center_distance_mm
         flange_thickness = 8.0
+        # Boss height is a bearing seat's worth of tower, not an arbitrary
+        # one: flange plus the widest of the two bearings, so both bosses
+        # finish at the same height and the two gears that sit on them stay
+        # coplanar (they have to, to mesh). Extruding these to
+        # face_width + 20 instead -- which is what this did originally --
+        # runs a 47 mm boss straight through a gear whose bore is 25 mm.
+        depth = flange_thickness + max(self.pinion_bearing[3],
+                                       self.gear_bearing[3])
+        self.boss_height_mm = depth
 
         pinion_boss_od = self.pinion_bearing[2] + 2 * wall
         gear_boss_od = self.gear_bearing[2] + 2 * wall
 
+        # Footprint has to clear two different things, and the larger one
+        # wins on each edge: the bearing bosses (plus room for a mounting
+        # pad), and the gears themselves (plus a running clearance to the
+        # inside of the wall). Sizing on the bosses alone -- which is what
+        # this did originally -- gives a housing the gear does not fit
+        # inside: 8 mm of overhang at 5 kW, but 84 mm at 50 kW, because
+        # bearing OD grows with shaft torque while the gear grows with the
+        # module the Lewis equation asks for, and those are not the same
+        # curve. A gearbox whose gear hangs outside its own casing is not a
+        # simplification, it is a mistake.
         pad_margin = 15.0
-        min_x = -pinion_boss_od / 2 - pad_margin
-        max_x = c + gear_boss_od / 2 + pad_margin
-        max_y = max(pinion_boss_od, gear_boss_od) / 2 + pad_margin
+        tip_clearance = 8.0
+        pinion_tip = self.pinion_geom["addendum_radius"]
+        gear_tip = self.gear_geom["addendum_radius"]
+
+        min_x = min(-pinion_boss_od / 2 - pad_margin,
+                    -pinion_tip - tip_clearance)
+        max_x = max(c + gear_boss_od / 2 + pad_margin,
+                    c + gear_tip + tip_clearance)
+        max_y = max(max(pinion_boss_od, gear_boss_od) / 2 + pad_margin,
+                    gear_tip + tip_clearance)
         pad_centres = [(px, py) for px in (min_x + 5, max_x - 5)
                        for py in (max_y - 5, -(max_y - 5))]
         drain_centre = (c / 2, -(max(pinion_boss_od, gear_boss_od) / 2 + 6))
@@ -393,14 +459,19 @@ class GearboxDesign:
         return housing
 
     def assembly(self):
+        housing = self.create_housing()
         pinion = self.create_pinion()
         gear = self.create_gear_wheel()
-        housing = self.create_housing()
+
+        # Gears sit on top of the bearing bosses rather than inside them.
+        # create_housing() sets boss_height_mm; call it first so that value
+        # exists before it is used.
+        z = self.boss_height_mm
 
         asm = cq.Assembly()
         asm.add(housing, name="housing", color=cq.Color("gray50"))
-        pinion_positioned = pinion.translate((0, 0, 10.0))
-        gear_positioned = gear.translate((self.center_distance_mm, 0, 10.0))
+        pinion_positioned = pinion.translate((0, 0, z))
+        gear_positioned = gear.translate((self.center_distance_mm, 0, z))
         asm.add(pinion_positioned, name="pinion", color=cq.Color("gray30"))
         asm.add(gear_positioned, name="gear", color=cq.Color("gray70"))
         return asm
@@ -413,9 +484,9 @@ class GearboxDesign:
 
     def export_parts_separately(self, output_dir="./parts", prefix=""):
         Path(output_dir).mkdir(exist_ok=True)
+        housing = self.create_housing()
         pinion = self.create_pinion()
         gear = self.create_gear_wheel()
-        housing = self.create_housing()
 
         cq.exporters.export(pinion, f"{output_dir}/{prefix}01_pinion.step")
         cq.exporters.export(gear, f"{output_dir}/{prefix}02_gear.step")

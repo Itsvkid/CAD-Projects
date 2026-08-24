@@ -333,6 +333,50 @@ Then run FEA to verify:
 - `BOM.json` — Bill of materials (parts, materials, masses)
 - `specifications.txt` — Technical specs (force, speed, pressure)
 
+## Figures
+
+`../render.py` builds these from this same generator — tessellated on the
+OpenCASCADE kernel and rendered offscreen through VTK, so no CAD GUI,
+browser or screenshot is involved:
+
+```bash
+python ../render.py actuator
+```
+
+- `figures/actuator-family.png` — all four aircraft classes in one scene
+  at true relative scale.
+- `figures/actuator-assembly.png` — the B737-class design on its own.
+- `figures/actuator-scaling.png` — output force and force per unit mass
+  against bore across the family.
+
+Each is written in light and dark variants, in the portfolio site's own
+colour tokens, and these are the versions published at
+<https://vinaykumar.is-a.dev>.
+
+## A real bug this caught
+
+`assembly()` built every component at the origin and added it there. But
+the cylinder body is `stroke + 50` long against a `stroke`-long rod, so
+the rod — and the clevis sitting 10 mm above its tip — ended up entirely
+*inside* the barrel. Every STEP file this project exported was a bare
+tube with the aircraft attachment point sealed inside it, which no viewer
+could show and no reviewer could read.
+
+Caught by rendering the assembly; a solid count and a bounding box both
+looked perfectly healthy. The fix is placement only — no part's own
+geometry changed — sliding the rod out along the bore until
+`ROD_ENGAGEMENT` of it remains captive, and putting the clevis on the
+tip where it belongs.
+
+**Outstanding, and visible in the renders:** the clevis is sized
+`rod + 10` square, and its pin bore is `rod/2 + 2` in radius, which
+leaves only 3 mm of material between bore and edge — not enough for the
+M6 mounting holes the code drills at ±10 mm. On the B777-class variant
+they fall entirely inside the bore and vanish, leaving a 7-face clevis
+where the smaller variants have 10. Fixing it properly means resizing
+the clevis plate, which is a design change rather than a placement one,
+so it is recorded here rather than quietly patched.
+
 ## Learning Outcomes
 
 After this project, you'll understand:

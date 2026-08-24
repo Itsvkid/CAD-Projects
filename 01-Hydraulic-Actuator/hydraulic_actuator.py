@@ -131,21 +131,44 @@ class HydraulicActuator:
 
         return port_a, port_b
 
+    # Fraction of the rod left engaged in the bore when the assembly is
+    # posed extended. Real rod-end actuators keep a proportion of the rod
+    # captive at full extension so the piston stays supported; a third is a
+    # reasonable simplified value.
+    ROD_ENGAGEMENT = 0.35
+
     def assembly(self):
-        """Create complete actuator assembly."""
-        # Create individual components
+        """Create complete actuator assembly, posed extended.
+
+        The pose matters, and the obvious one is wrong. Build every part at
+        the origin and nothing is visible: the cylinder body is
+        `stroke + 50` long against a `stroke`-long rod, so the rod -- and
+        the clevis sitting 10 mm above its tip -- end up entirely inside
+        the barrel. That is what this assembly used to export: a bare tube
+        with the aircraft attachment point sealed inside it, geometry that
+        no viewer could show and no reviewer could read.
+
+        Posing the rod extended puts both where they belong. Nothing about
+        the parts themselves changes -- this is placement only.
+        """
         cylinder = self.create_cylinder_body()
         rod = self.create_piston_rod()
         clevis = self.create_clevis_end()
 
-        # Create assembly
+        # Rod slid out along the bore until only ROD_ENGAGEMENT of it
+        # remains captive, measured from the cylinder's rod end.
+        cylinder_length = self.stroke + 50
+        rod_base_z = cylinder_length - self.ROD_ENGAGEMENT * self.stroke
+        rod_tip_z = rod_base_z + self.stroke
+
         asm = cq.Assembly()
         asm.add(cylinder, name="cylinder_body", color=cq.Color("gray70"))
-        asm.add(rod, name="piston_rod", color=cq.Color("gray50"))
-
-        # Position clevis at rod end
-        clevis_positioned = clevis.translate((0, 0, self.stroke + 10))
-        asm.add(clevis_positioned, name="clevis_end", color=cq.Color("gray30"))
+        asm.add(rod.translate((0, 0, rod_base_z)),
+                name="piston_rod", color=cq.Color("gray50"))
+        # Clevis centred 10 mm past the rod tip, the same small overlap the
+        # original placement used to join the two.
+        asm.add(clevis.translate((0, 0, rod_tip_z + 10)),
+                name="clevis_end", color=cq.Color("gray30"))
 
         return asm
 
