@@ -87,29 +87,60 @@ class HydraulicActuator:
         )
         return rod
 
+    # Clevis proportions. The plate has to be big enough to carry the two
+    # M6 mounting holes clear of the pin bore, and the old fixed
+    # `rod + 10` square was not: at rod 21 the bore is already 25 across,
+    # leaving 3 mm of plate either side for a hole needing 6.5. The holes
+    # landed inside the bore and were swallowed by it -- on the B777
+    # variant they vanished entirely, leaving a 7-face clevis where the
+    # smaller variants had 10. Sizing the plate from the bore outwards
+    # instead makes that impossible by construction.
+    BOLT_CLEARANCE_HOLE = 6.5   # M6 clearance, ISO 273 medium series
+    BORE_TO_HOLE_LIGAMENT = 4.0  # min material between pin bore and bolt hole
+    HOLE_TO_EDGE_MARGIN = 4.0    # min material between bolt hole and plate edge
+
+    @property
+    def pin_bore_diameter(self):
+        """Through-bore for the attachment pin. Two millimetres larger in
+        radius than the rod it caps."""
+        return self.rod + 4.0
+
+    @property
+    def bolt_hole_offset(self):
+        """Bolt-hole centres, measured from the pin-bore axis."""
+        return (self.pin_bore_diameter / 2 + self.BORE_TO_HOLE_LIGAMENT
+                + self.BOLT_CLEARANCE_HOLE / 2)
+
+    @property
+    def clevis_size(self):
+        """Square plate side, derived so the bolt holes always clear both
+        the bore and the edge."""
+        return 2 * (self.bolt_hole_offset + self.BOLT_CLEARANCE_HOLE / 2
+                    + self.HOLE_TO_EDGE_MARGIN)
+
     def create_clevis_end(self):
         """Create clevis-end mounting for aircraft attachment: a mounting
         block (not a true forked yoke -- that's a separate modelling task)
         with a through-bore for the rod pin and two bolt holes, all drilled
         through the same thickness direction so they sit on one consistent
-        workplane."""
-        half_height = (self.rod + 10) / 2
+        workplane.
+
+        Plate size is derived from the bore rather than fixed -- see the
+        constants above for why."""
+        size = self.clevis_size
         clevis = (
             cq.Workplane("XY")
-            .box(self.rod + 10, self.clevis_thickness, self.rod + 10)
+            .box(size, self.clevis_thickness, size)
             .faces(">Y")
             .workplane()
-            .circle(self.rod / 2 + 2)  # bore for rod/pin attachment
+            .circle(self.pin_bore_diameter / 2)
             .cutThruAll()
         )
         clevis = (
             clevis.faces(">Y")
             .workplane()
-            .pushPoints([
-                (0, min(10.0, half_height - 4)),
-                (0, -min(10.0, half_height - 4)),
-            ])
-            .hole(6)  # M6 bolt holes, aircraft mounting
+            .pushPoints([(0, self.bolt_hole_offset), (0, -self.bolt_hole_offset)])
+            .hole(self.BOLT_CLEARANCE_HOLE)
         )
         return clevis
 
@@ -242,30 +273,40 @@ class HydraulicActuator:
         }
         return bom
 
+    # Densities, g/cm3. Aluminium 6061-T6 for the cylinder, steel 4340 for
+    # the rod and clevis -- matching the materials the BOM already declares.
+    DENSITY_ALUMINIUM = 2.70
+    DENSITY_STEEL = 7.85
+
+    @staticmethod
+    def _solid_mass_kg(workplane, density_g_cm3):
+        """Mass from the real solid's OCC volume, not a hand-rolled formula.
+
+        The formulas this replaced were all wrong, in three different ways.
+        The cylinder's used `stroke` where the part is `stroke + 50` long
+        and ignored the end-cap web entirely. The rod's ignored the seal
+        pocket. The clevis's was `(bore / 10) * 0.2` -- a heuristic with no
+        connection to the geometry at all, which is why every B737-class
+        clevis weighed exactly 0.700 kg however the plate was sized.
+
+        Project 02 found and fixed exactly this, and the lesson did not
+        cross over. The solids already exist by the time get_bom() runs, so
+        there was never a reason to approximate.
+        """
+        volume_mm3 = workplane.val().Volume()
+        return (volume_mm3 / 1000) * density_g_cm3 / 1000
+
     def _calc_cylinder_mass(self):
-        """Rough mass calculation for cylinder (simplified)."""
-        import math
-        # Volume of aluminum tube: π * (OD² - ID²) * L / 4
-        volume_mm3 = math.pi * ((self.cylinder_od**2 - self.bore**2) * self.stroke) / 4
-        volume_cm3 = volume_mm3 / 1000
-        # Aluminum density ≈ 2.7 g/cm³
-        mass_g = volume_cm3 * 2.7
-        return mass_g / 1000  # Convert to kg
+        return self._solid_mass_kg(self.create_cylinder_body(),
+                                   self.DENSITY_ALUMINIUM)
 
     def _calc_rod_mass(self):
-        """Rough mass calculation for rod."""
-        import math
-        # Volume of steel rod: π * (d/2)² * L
-        volume_mm3 = math.pi * (self.rod / 2)**2 * self.stroke
-        volume_cm3 = volume_mm3 / 1000
-        # Steel density ≈ 7.85 g/cm³
-        mass_g = volume_cm3 * 7.85
-        return mass_g / 1000  # Convert to kg
+        return self._solid_mass_kg(self.create_piston_rod(),
+                                   self.DENSITY_STEEL)
 
     def _calc_clevis_mass(self):
-        """Rough mass calculation for clevis."""
-        # Simplified: 0.2 kg per 10mm bore
-        return (self.bore / 10) * 0.2
+        return self._solid_mass_kg(self.create_clevis_end(),
+                                   self.DENSITY_STEEL)
 
     def save_bom(self, filename="BOM.json"):
         """Save BOM to JSON file."""

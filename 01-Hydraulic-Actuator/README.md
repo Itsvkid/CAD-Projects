@@ -191,8 +191,9 @@ The script auto-calculates:
 | **Force Output** | F = P × A | 20.2 kN |
 | **Speed (5 GPM)** | v = Q / A | 5.3 cm/s |
 | **Power Output** | W = F × v | 1.07 kW |
-| **Cylinder Mass** | ρ_Al = 2.7 g/cm³ | ~0.8 kg |
-| **Rod Mass** | ρ_Steel = 7.85 g/cm³ | ~0.9 kg |
+| **Cylinder Mass** | ρ_Al = 2.7 g/cm³ × OCC solid volume | 0.307 kg |
+| **Rod Mass** | ρ_Steel = 7.85 g/cm³ × OCC solid volume | 0.542 kg |
+| **Clevis Mass** | ρ_Steel = 7.85 g/cm³ × OCC solid volume | 0.148 kg |
 
 ### Seal Specifications
 
@@ -297,25 +298,23 @@ Then run FEA to verify:
 
 ### Typical Actuator Specifications
 
-**Small Aircraft (Cessna 172):**
-- Bore: 16 mm, Rod: 10 mm, Stroke: 100 mm
-- Force: 4.2 kN, Speed: 6.5 cm/s
-- Mass: 0.3 kg, Cost: $200-300
+Masses are the sum of the three modelled solids' real OCC volumes times
+their material densities — not an estimate. They exclude seals, ports,
+fasteners and fluid, so they are a dry structural mass, not an installed
+one.
 
-**Regional Turboprop (Q400):**
-- Bore: 25 mm, Rod: 15 mm, Stroke: 150 mm
-- Force: 10.3 kN, Speed: 4.2 cm/s
-- Mass: 0.7 kg, Cost: $400-600
+| Class | Bore × Rod × Stroke | Force @ 210 bar | Mass |
+|---|---|---|---|
+| Small aircraft (Cessna 172) | 16 × 10 × 100 | 4.2 kN | 0.250 kg |
+| Regional turboprop (Q400) | 25 × 15 × 150 | 10.3 kN | 0.506 kg |
+| Narrow-body (B737-800) | 35 × 21 × 200 | 20.2 kN | 0.997 kg |
+| Wide-body (B777-300ER) | 50 × 30 × 250 | 41.2 kN | 2.108 kg |
 
-**Narrow-body (B737-800):**
-- Bore: 35 mm, Rod: 21 mm, Stroke: 200 mm
-- Force: 20.2 kN, Speed: 3.7 cm/s
-- Mass: 1.3 kg, Cost: $1,500-2,500
-
-**Wide-body (B777-300ER):**
-- Bore: 50 mm, Rod: 30 mm, Stroke: 250 mm
-- Force: 41.1 kN, Speed: 2.6 cm/s
-- Mass: 2.8 kg, Cost: $3,000-5,000
+**No cost estimates.** An earlier version of this table carried unit costs
+($200–300 up to $3,000–5,000). They had no source — no supplier quote, no
+cost model, nothing but plausibility — and publishing invented numbers next
+to computed ones invites a reader to trust both equally. Project 02 states
+the same policy for the same reason.
 
 ## Files Generated
 
@@ -353,6 +352,80 @@ Each is written in light and dark variants, in the portfolio site's own
 colour tokens, and these are the versions published at
 <https://vinaykumar.is-a.dev>.
 
+## Drawing pack — GD&T, fits and a tolerance stack
+
+```bash
+python drawing.py                 # four A4 sheets into drawings/
+python -m pytest -q               # 54 tests
+```
+
+| Sheet | Content |
+|---|---|
+| `ACT-001` | Cylinder body — longitudinal half-section, end view |
+| `ACT-002` | Piston rod — side view, pocket-end view |
+| `ACT-003` | Clevis end — front and side views, hole pattern |
+| `ACT-100` | Assembly GA — ballooned, parts list, stack-up table |
+
+A model with nominal dimensions is not a manufacturable part. What turns
+one into the other is saying, for every functional feature, how far from
+nominal it may be and still work — in the language a machine shop and an
+inspector both already read.
+
+**Limits and fits** come from ISO 286, derived rather than typed: the IT
+grade tables and fundamental deviations live in `tolerances.py` and are
+indexed by nominal size band, so changing the bore changes its limits
+without anyone re-reading a handbook. The bore is ⌀35 H8, the rod ⌀21 f7,
+the pin bore ⌀25 H9. Hole-basis throughout, because holes are cut by
+fixed-size tooling and shafts are turned to whatever size is wanted.
+
+**Geometric tolerances** (ISO 1101) are on the features where form or
+location decides whether the part works:
+
+- **Cylindricity 0.02** on the bore — not roundness. A bore round at every
+  station but tapered still leaks past a seal.
+- **Total runout 0.05 to A** on the outside diameter — not concentricity,
+  because runout controls the whole surface rather than the derived centre
+  of it, and an inspector can actually measure it by rotating the part
+  against an indicator.
+- **Straightness 0.05** on the rod. At the B737 size it is 200 mm long on a
+  ⌀21 shaft, near 10:1 — a bent rod binds in its gland and scrubs its seal
+  even when every diameter measures perfectly.
+- **Position ⌀0.3 (M) to A B C** on the clevis bolt holes. At maximum
+  material condition, so a hole drilled larger than minimum earns
+  proportional bonus tolerance — withholding that rejects parts that
+  assemble perfectly well.
+
+Datums are chosen, not defaulted. On the cylinder body datum A is the
+**bore axis**, not the outside diameter: the bore is what the part exists
+to do, so it is what everything else should be measured from. Taking the
+OD instead would be easier to fixture and would let the bore wander
+relative to the very axis the actuator works on.
+
+**Tolerance stack-up** on `ACT-100`: extended eye-to-eye length, base face
+to clevis pin-bore axis, five contributors — and rod engagement *subtracts*,
+since rod buried in the bore is length the assembly does not gain.
+
+| | |
+|---|---|
+| Nominal | 390.0 mm |
+| Worst case | ±0.90 mm |
+| RSS (3σ) | ±0.44 mm |
+
+Both are reported because they answer different questions. Worst case adds
+arithmetically and is a guarantee — right for a single build. RSS adds in
+quadrature and is a statistical statement about a production run, roughly
+twice as tight here. Quoting only RSS hides the parts that will not fit;
+quoting only worst case buys tolerance nobody needed.
+
+A test asserts the stack's nominal equals where `assembly()` actually puts
+the clevis, so the drawing cannot drift from the model it dimensions.
+
+**What this pack is not.** It tolerances the features the model has. A
+production drawing would also carry a piston and gland (this model has
+neither), a rod-end bearing, thread callouts for the port bosses, and a
+surface-treatment and NDT schedule. Those are features not modelled, not
+tolerances left out — inventing callouts for them would be decoration.
+
 ## A real bug this caught
 
 `assembly()` built every component at the origin and added it there. But
@@ -368,14 +441,23 @@ geometry changed — sliding the rod out along the bore until
 `ROD_ENGAGEMENT` of it remains captive, and putting the clevis on the
 tip where it belongs.
 
-**Outstanding, and visible in the renders:** the clevis is sized
-`rod + 10` square, and its pin bore is `rod/2 + 2` in radius, which
-leaves only 3 mm of material between bore and edge — not enough for the
-M6 mounting holes the code drills at ±10 mm. On the B777-class variant
-they fall entirely inside the bore and vanish, leaving a 7-face clevis
-where the smaller variants have 10. Fixing it properly means resizing
-the clevis plate, which is a design change rather than a placement one,
-so it is recorded here rather than quietly patched.
+**A second, since fixed:** the clevis was sized `rod + 10` square against
+a pin bore of `rod/2 + 2` radius, leaving 3 mm of plate for M6 holes
+needing 6.5. The holes landed inside the bore — on the B777 variant they
+vanished into it entirely, leaving a 7-face clevis where the smaller
+variants had 10. The plate is now derived outwards from the bore
+(`BORE_TO_HOLE_LIGAMENT`, `HOLE_TO_EDGE_MARGIN`), so the holes clear it by
+construction at every size, and a test asserts both clearances across the
+family. All four variants now export an identical 9-face clevis.
+
+**And a third:** the BOM's masses were hand-rolled formulas, all wrong.
+The cylinder's used `stroke` where the part is `stroke + 50` long and
+ignored the end-cap web; the rod's ignored the seal pocket; the clevis's
+was `(bore / 10) * 0.2`, a heuristic with no connection to the geometry
+at all — which is why every B737 clevis weighed exactly 0.700 kg however
+the plate was sized, and why the B777 figure was 5.3× the truth. Masses
+now come from each solid's real OCC volume. Project 02 had already found
+and fixed exactly this; the lesson had not crossed over.
 
 ## Learning Outcomes
 
