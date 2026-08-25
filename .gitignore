@@ -57,3 +57,6 @@ test_output/
 # Cache
 *.cache
 .pytest_cache/
+
+# The DXF is a generated export like the STEP files
+*.dxf
