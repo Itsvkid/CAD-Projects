@@ -18,7 +18,7 @@ exercises rather than tutorials: you can be wrong and find out.
 | **SheetMetal workbench** | Installed 2026-08-27 | v0.8.22, at `~/Library/Application Support/FreeCAD/v1-1/Mod/SheetMetal`. Adds unfold / flat pattern. |
 | **ParaView 6.1** | Installed | CFD post-processing. |
 | **Onshape** | Account needed, nothing to install | Browser-based, renders server-side, so 8 GB RAM is irrelevant. Free plan makes documents public — which for a portfolio is a feature, not a limit. |
-| **Fusion 360** | **Not installed** | Homebrew's cask wraps Autodesk's own downloader, which requires an interactive sign-in and fails headless. Install from autodesk.com/products/fusion-360, sign in, choose the free personal-use licence. |
+| **Autodesk Fusion** | Installed 2026-08-27, **education licence** | At `~/Applications/Autodesk Fusion.app`. The education licence unlocks what personal use does not: full drawings, simulation, and STEP export. It is the primary tool for projects 1–3 and 5. Output is marked educational — check before publishing a drawing. |
 | **CATIA / ANSYS / SolidWorks** | Possibly available already | `Omnissa Horizon Client` on this machine is configured for `desktops.apps.cranfield.ac.uk`. Check that catalogue before anything else — it likely serves the exact commercial packages this portfolio cannot otherwise show. |
 
 ## The machine, and what it means

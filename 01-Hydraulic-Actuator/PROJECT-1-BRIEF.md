@@ -1,7 +1,7 @@
 # Project 1 — Rebuild the cylinder body
 
 **Drawing:** `drawings/ACT-001-cylinder-body.png`
-**Tool:** FreeCAD 1.1.3, PartDesign workbench
+**Tool:** Autodesk Fusion (education licence) — or FreeCAD, both below
 **Time:** an hour the first time, ten minutes the third
 
 Work from the drawing. Do not read `hydraulic_actuator.py` — reading
@@ -16,47 +16,77 @@ smaller cavity from the base end, with solid material left between them.
 That web is the whole reason this part is more interesting than a tube —
 and it is where the mistake usually happens.
 
-## Setting up
+## Which tool
 
-1. **Edit → Preferences → General → Units** — Standard (mm/kg/s), decimals 2.
-2. **File → New**, then switch to the **PartDesign** workbench.
-3. **Create body** (the first toolbar button). Everything goes inside it.
+**Use Fusion.** The education licence unlocks the things the free
+personal licence does not — full drawings, simulation, and crucially
+**STEP export**, which personal use disables and which the checker below
+needs. It is also the name a design office recognises.
+
+Keep FreeCAD for working offline, and for project 4, where having two
+independent unfold implementations to compare against your own arithmetic
+is worth more than having one.
+
+*One thing to know: Autodesk education licences mark their output as
+educational. Check an exported drawing for a stamp before publishing it.
+For a student portfolio that is honest and fine — just know it is there.*
 
 ## The approach worth taking: one revolve
 
 A lathe makes this part by spinning it and cutting a profile. Model it the
 same way and the whole thing is one sketch and one feature.
 
-4. **Create sketch** → pick the **XZ plane**. You are now drawing a
-   half-section: horizontal is radius from the axis, vertical is length.
-5. Draw a **closed polyline** tracing the material of that half-section —
-   up the outside, in across the top face, down the bore, across the web
-   to the axis, and back. Eight segments. Rough is fine; constrain after.
-6. **Constrain it.** Horizontal/vertical on every segment first, then a
-   coincident constraint tying the profile to the origin, then dimensions
-   off the drawing.
-   - The sketch is done when the status bar says **"Fully constrained"**
-     and the geometry turns green. Not before. A sketch with free
-     geometry will move on its own the first time you edit anything near
-     it, and you will not notice until the volume is wrong.
-7. Close the sketch, then **Revolution**. Axis: the sketch's **vertical
-   axis**. Angle 360°.
+Note throughout: the profile uses **radii**, the drawing gives
+**diameters**. Halve as you go. Mixing them up is the second most common
+way to get this wrong and produces a part exactly twice the size.
 
-Note the profile only ever uses radii, while the drawing gives diameters.
-Halve them as you go — mixing the two up is the second most common way to
-get this wrong, and it produces a part exactly twice the size.
+### In Fusion
+
+1. **New Design**. Check units are mm — browser → *Document Settings* →
+   *Units*.
+2. **Create → Create Sketch** (`S`), pick the **Front** plane. You are now
+   drawing a half-section: horizontal is radius from the axis, vertical is
+   length.
+3. **Line** (`L`). Trace the material of that half-section as a closed
+   loop — up the outside, in across the top face, down the bore, across
+   the web to the axis, back down and out. Eight segments. Rough is fine;
+   dimension after.
+4. **Sketch Dimension** (`D`) for each dimension off the drawing, plus
+   coincident constraints tying the profile to the origin.
+   - The sketch is done when the palette says **"Fully Constrained"** and
+     the geometry goes black. Not before. Under-constrained geometry moves
+     on its own the first time you edit near it, and you will not notice
+     until the volume is wrong.
+5. **Finish Sketch**, then **Create → Revolve** (`R`). Profile: the closed
+   region. Axis: expand *Origin* in the browser and pick the **Z axis**.
+   Angle 360°.
+
+### In FreeCAD
+
+1. **Edit → Preferences → General → Units** — Standard (mm/kg/s).
+2. **File → New**, **PartDesign** workbench, **Create body**.
+3. **Create sketch** → **XZ plane**, same profile as above.
+4. Constrain horizontal/vertical first, then coincident to origin, then
+   dimensions. Fully constrained shows in the status bar and turns the
+   geometry green.
+5. Close the sketch → **Revolution**, axis = the sketch's vertical axis,
+   360°.
 
 ### If you would rather: pad and pockets
 
-Pad a circle to full length, then pocket the bore from the top face to a
-depth, then pocket the cavity from the bottom face. Three features instead
-of one. It works and it is easier to follow the first time — but it models
-the part as a milled block rather than a turned one, and each pocket
-depends on a face that moves if you change anything.
+Extrude a circle to full length, then cut the bore from the top face to a
+depth and the cavity from the bottom face. Three features instead of one.
+Easier to follow the first time — but it models the part as a milled block
+rather than a turned one, and each cut depends on a face that moves if you
+change anything.
 
 ## Checking your work
 
-**File → Export**, choose **STEP with colors (*.step)**, then:
+**Fusion:** *File → Export*, type **STEP**, save to a local folder (not
+just the cloud hub).
+**FreeCAD:** *File → Export*, **STEP with colors (\*.step)**.
+
+Then:
 
 ```bash
 cd CAD-Projects/01-Hydraulic-Actuator
@@ -84,7 +114,9 @@ Geometry agreeing does not mean the model is good. A part built as one
 lumpy pad measures identically to a clean revolve, and only one of them
 survives contact with a change request.
 
-So test it: **edit your sketch and change the bore from 35 to 50.**
+So test it: **edit your sketch and change the bore from 35 to 50.** In
+Fusion, double-click the sketch in the timeline at the bottom; in FreeCAD,
+double-click it in the tree.
 
 - Does the model rebuild without errors?
 - Does the wall thickness stay 3 mm, or did it become whatever was left?
@@ -99,7 +131,7 @@ Set it back to 35 before exporting.
 
 ## When it works
 
-Screenshot the model **with the tree panel visible** — the tree is the
-evidence that it was modelled rather than imported — and save the
-`.FCStd` alongside. Both go into the portfolio; see the last section of
+Screenshot the model **with the browser and timeline visible** (in
+FreeCAD, the tree panel) — that is the evidence it was modelled rather
+than imported — and save the native file alongside. Both go into the portfolio; see the last section of
 `../LEARNING-PATH.md` for where.
