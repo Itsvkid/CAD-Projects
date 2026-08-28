@@ -109,6 +109,26 @@ the growth allowance. Keeping the rejected one in the file matters: a
 routing study that only ever shows the answer that worked looks like luck
 rather than method.
 
+## Figures
+
+```bash
+conda run -n pyocc_env python figures.py   # chart + STL scene
+python ../render.py duct                   # renders that scene in VTK
+```
+
+Two commands and two environments, deliberately. `pyocc_env` has the
+kernel but no VTK; the base environment has VTK but not pythonocc.
+Rather than install VTK twice, the project tessellates beside the kernel
+that built the solid and writes STL, and `../render.py` draws it. The
+clearance numbers always come from the B-rep, never from that mesh.
+
+- `figures/duct-constraints.png` — what each constraint demanded of the
+  wall, and which one won.
+- `figures/duct-clearance.png` — the accepted route and the rejected one
+  together, past the structure both had to clear.
+
+Both are published at <https://vinaykumar.is-a.dev>.
+
 ## Validation
 
 - **Continuity, backwards.** The bore is fed back through `ρAV` and must

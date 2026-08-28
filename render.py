@@ -455,7 +455,7 @@ def gearbox_sizing_figure(gearbox_module, theme="light"):
 # ── Entry point ─────────────────────────────────────────────────────────────
 
 def main(argv):
-    targets = set(argv[1:]) or {"actuator", "gearbox"}
+    targets = set(argv[1:]) or {"actuator", "gearbox", "duct"}
 
     if "actuator" in targets:
         print("01-Hydraulic-Actuator")
@@ -465,6 +465,11 @@ def main(argv):
             actuator_assembly_render(module, theme)
             actuator_scaling_figure(module, theme)
 
+    if "duct" in targets:
+        print("03-Thermal-Duct")
+        for theme in ("light", "dark"):
+            duct_clearance_render(theme)
+
     if "gearbox" in targets:
         print("02-Gearbox-Family")
         module = _load(GEARBOX_DIR / "gearbox_family.py", "gearbox_family")
@@ -472,6 +477,129 @@ def main(argv):
             gearbox_assembly_render(module, theme)
             gearbox_sizing_figure(module, theme)
 
+
+
+# ── STL scenes ─────────────────────────────────────────────────────────────
+#
+# Project 03 builds its geometry on pythonocc in `pyocc_env`, which has no
+# VTK. Rather than install a second copy of VTK there, that project
+# tessellates and writes STL beside the kernel that built the solid, and
+# the rendering happens here where VTK already lives. Same split as the
+# rest of this file: the kernel meshes, VTK draws.
+
+
+def _stl_actor(path, rgb, opacity=1.0):
+    reader = vtk.vtkSTLReader()
+    reader.SetFileName(str(path))
+    reader.Update()
+
+    normals = vtk.vtkPolyDataNormals()
+    normals.SetInputConnection(reader.GetOutputPort())
+    normals.SetFeatureAngle(30.0)
+    normals.SplittingOn()
+    normals.ConsistencyOn()
+    normals.AutoOrientNormalsOn()
+
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(normals.GetOutputPort())
+
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    prop = actor.GetProperty()
+    prop.SetColor(*rgb)
+    prop.SetOpacity(opacity)
+    prop.SetAmbient(0.28)
+    prop.SetDiffuse(0.72)
+    prop.SetSpecular(0.14)
+    prop.SetSpecularPower(24.0)
+    return actor
+
+
+def stl_scene(bodies, path, theme="light", *, size=(1900, 1300), zoom=1.0,
+              direction=(0.75, -1.5, 0.85)):
+    """Render several STL bodies together.
+
+    `bodies` maps a path to (rgb, opacity). Opacity is what makes a
+    clearance study readable: the obstruction has to be visible enough to
+    locate and transparent enough to see the duct threading past it.
+    """
+    t = THEMES[theme]
+    background = _hex_to_rgb(t["surface"])
+
+    renderer = vtk.vtkRenderer()
+    renderer.SetBackground(*background)
+    for body, (rgb, opacity) in bodies.items():
+        renderer.AddActor(_stl_actor(body, rgb, opacity))
+
+    window = vtk.vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.AddRenderer(renderer)
+    window.SetSize(*size)
+    window.SetMultiSamples(8)
+
+    camera = renderer.GetActiveCamera()
+    camera.ParallelProjectionOn()
+    camera.SetPosition(*direction)
+    camera.SetFocalPoint(0.0, 0.0, 0.0)
+    camera.SetViewUp(0.0, 0.0, 1.0)
+    renderer.ResetCamera()
+    camera.Zoom(zoom)
+
+    light = vtk.vtkLight()
+    light.SetLightTypeToCameraLight()
+    light.SetPosition(-0.35, 0.25, 1.0)
+    light.SetFocalPoint(0.0, 0.0, 0.0)
+    renderer.RemoveAllLights()
+    renderer.AddLight(light)
+
+    window.Render()
+    to_image = vtk.vtkWindowToImageFilter()
+    to_image.SetInput(window)
+    to_image.Update()
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = vtk.vtkPNGWriter()
+    writer.SetFileName(str(path))
+    writer.SetInputConnection(to_image.GetOutputPort())
+    writer.Write()
+    window.Finalize()
+
+    _trim(path, background)
+    print(f"  {path}")
+    return path
+
+
+DUCT_DIR = ROOT / "03-Thermal-Duct"
+
+
+def duct_clearance_render(theme="light"):
+    """The revised route threading past the structure it has to clear.
+
+    The rejected route is drawn in the accent colour alongside it, because
+    the interesting thing about this study is not that a duct fits — it is
+    that the obvious route did not.
+    """
+    t = THEMES[theme]
+    scene = DUCT_DIR / "exports" / "scene"
+    bodies = {
+        scene / "core-casing.stl": (_hex_to_rgb(t["parts"][1]), 0.22),
+        scene / "accessory-bracket.stl": (_hex_to_rgb(t["parts"][2]), 0.55),
+        scene / "duct-initial.stl": (_hex_to_rgb(t["accent"]), 0.55),
+        scene / "duct-revised.stl": (_hex_to_rgb(t["parts"][0]), 1.0),
+    }
+    missing = [b for b in bodies if not b.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "run `conda run -n pyocc_env python figures.py` in 03-Thermal-Duct "
+            f"first — missing {[m.name for m in missing]}")
+    # Camera chosen so the rejected route is visibly buried in the casing
+    # rather than merely near it. A side-on view makes the two routes look
+    # parallel and hides the whole point of the study.
+    return stl_scene(bodies, DUCT_DIR / "figures" /
+                     f"duct-clearance{_suffix(theme)}.png", theme,
+                     size=(1700, 1250), zoom=1.12,
+                     direction=(-0.65, -0.85, 0.95))
 
 if __name__ == "__main__":
     main(sys.argv)
