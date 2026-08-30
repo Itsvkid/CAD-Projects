@@ -1,0 +1,200 @@
+[
+  {
+    "check": "MINIMUM WALL",
+    "severity": "fail",
+    "measured": 1.75,
+    "limit": 4.0,
+    "location": [
+      162.25000000000034,
+      98.25,
+      6.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      196.0,
+      94.99999999999814,
+      10.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      210.0,
+      53.101622283663005,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      172.25,
+      6.884945724796474e-12,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      85.75,
+      100.0,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      210.0,
+      -53.10162228366,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      -42.5,
+      94.99999999999814,
+      10.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      196.0,
+      -95.00000000000186,
+      10.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      -38.5,
+      9.947598300641403e-13,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      -42.5,
+      -95.00000000000186,
+      10.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      85.75,
+      -100.0,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      68.25,
+      -3.6236906382257684e-12,
+      10.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      132.0,
+      -6.721750981081969e-13,
+      10.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      165.5,
+      94.99999999999933,
+      4.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      139.5,
+      -5.770828259699101e-12,
+      14.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      47.0,
+      -35.500000000001656,
+      14.0
+    ]
+  },
+  {
+    "check": "DRAFT ANGLE",
+    "severity": "fail",
+    "measured": 0.0,
+    "limit": 2.0,
+    "location": [
+      -23.5,
+      -4.866098857046032e-12,
+      14.0
+    ]
+  },
+  {
+    "check": "HOLE ASPECT",
+    "severity": "advisory",
+    "measured": 3.076923076923077,
+    "limit": 3.0,
+    "location": [
+      132.0,
+      -6.721750981081969e-13,
+      10.0
+    ]
+  }
+]

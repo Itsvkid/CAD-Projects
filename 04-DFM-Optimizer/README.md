@@ -111,6 +111,23 @@ fillet sweeps a quarter. Both checks now test the angular sweep, and the
 test asserts the fillet is silent *and* the actuator's real 5.7:1 bore is
 still flagged.
 
+## Figures
+
+```bash
+conda run -n pyocc_env python figures.py   # matrix + housing scene
+python ../render.py dfm                    # renders that scene in VTK
+```
+
+- `figures/dfm-findings.png` — the gearbox housing with all seventeen
+  failures marked **at the coordinate each check returned**. The renderer
+  reads those positions from JSON and never recomputes one, so the marks
+  are measurements rather than annotations.
+- `figures/dfm-matrix.png` — six parts against four processes. Every part
+  is clean as machined or formed tube, and accumulates failures as a
+  casting.
+
+Both are published at <https://vinaykumar.is-a.dev>.
+
 ## Validation
 
 - **Ray thickness against a known cube** — a 10 mm box must return exactly

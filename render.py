@@ -455,7 +455,7 @@ def gearbox_sizing_figure(gearbox_module, theme="light"):
 # ── Entry point ─────────────────────────────────────────────────────────────
 
 def main(argv):
-    targets = set(argv[1:]) or {"actuator", "gearbox", "duct"}
+    targets = set(argv[1:]) or {"actuator", "gearbox", "duct", "dfm"}
 
     if "actuator" in targets:
         print("01-Hydraulic-Actuator")
@@ -469,6 +469,11 @@ def main(argv):
         print("03-Thermal-Duct")
         for theme in ("light", "dark"):
             duct_clearance_render(theme)
+
+    if "dfm" in targets:
+        print("04-DFM-Optimizer")
+        for theme in ("light", "dark"):
+            dfm_findings_render(theme)
 
     if "gearbox" in targets:
         print("02-Gearbox-Family")
@@ -600,6 +605,115 @@ def duct_clearance_render(theme="light"):
                      f"duct-clearance{_suffix(theme)}.png", theme,
                      size=(1700, 1250), zoom=1.12,
                      direction=(-0.65, -0.85, 0.95))
+
+DFM_DIR = ROOT / "04-DFM-Optimizer"
+
+
+def _marker_actor(points, rgb, radius):
+    """Spheres at a set of coordinates, as one actor.
+
+    Glyphed rather than looped so seventeen markers cost one actor instead
+    of seventeen — VTK handles a thousand this way just as happily.
+    """
+    vtk_points = vtk.vtkPoints()
+    for x, y, z in points:
+        vtk_points.InsertNextPoint(x, y, z)
+    polydata = vtk.vtkPolyData()
+    polydata.SetPoints(vtk_points)
+
+    sphere = vtk.vtkSphereSource()
+    sphere.SetRadius(radius)
+    sphere.SetThetaResolution(20)
+    sphere.SetPhiResolution(20)
+
+    glyph = vtk.vtkGlyph3D()
+    glyph.SetInputData(polydata)
+    glyph.SetSourceConnection(sphere.GetOutputPort())
+    glyph.ScalingOff()
+
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(glyph.GetOutputPort())
+
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    prop = actor.GetProperty()
+    prop.SetColor(*rgb)
+    prop.SetAmbient(0.35)
+    prop.SetDiffuse(0.65)
+    prop.SetSpecular(0.2)
+    return actor
+
+
+def dfm_findings_render(theme="light"):
+    """The gearbox housing with every DFM failure marked where it was found.
+
+    The point of the picture is that the marks are *measured positions*,
+    not annotations someone placed. Each one is the coordinate the check
+    returned, read back from JSON — the renderer never recomputes a
+    finding, it only draws where one was.
+    """
+    import json
+
+    t = THEMES[theme]
+    scene = DFM_DIR / "exports" / "scene"
+    housing = scene / "gearbox-housing.stl"
+    findings_file = scene / "gearbox-findings.json"
+    if not housing.exists() or not findings_file.exists():
+        raise FileNotFoundError(
+            "run `conda run -n pyocc_env python figures.py` in "
+            "04-DFM-Optimizer first")
+
+    findings = json.loads(findings_file.read_text())
+    failures = [f["location"] for f in findings if f["severity"] == "fail"]
+    advisories = [f["location"] for f in findings if f["severity"] != "fail"]
+
+    renderer = vtk.vtkRenderer()
+    renderer.SetBackground(*_hex_to_rgb(t["surface"]))
+    renderer.AddActor(_stl_actor(housing, _hex_to_rgb(t["parts"][0]), 1.0))
+    if failures:
+        renderer.AddActor(_marker_actor(failures, _hex_to_rgb(t["accent"]), 5.5))
+    if advisories:
+        renderer.AddActor(_marker_actor(
+            advisories, _hex_to_rgb(t["ink_muted"]), 4.5))
+
+    window = vtk.vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.AddRenderer(renderer)
+    window.SetSize(1900, 1250)
+    window.SetMultiSamples(8)
+
+    camera = renderer.GetActiveCamera()
+    camera.ParallelProjectionOn()
+    camera.SetPosition(0.55, -1.15, 0.95)
+    camera.SetFocalPoint(0.0, 0.0, 0.0)
+    camera.SetViewUp(0.0, 0.0, 1.0)
+    renderer.ResetCamera()
+    camera.Zoom(1.1)
+
+    light = vtk.vtkLight()
+    light.SetLightTypeToCameraLight()
+    light.SetPosition(-0.35, 0.25, 1.0)
+    light.SetFocalPoint(0.0, 0.0, 0.0)
+    renderer.RemoveAllLights()
+    renderer.AddLight(light)
+
+    window.Render()
+    to_image = vtk.vtkWindowToImageFilter()
+    to_image.SetInput(window)
+    to_image.Update()
+
+    path = DFM_DIR / "figures" / f"dfm-findings{_suffix(theme)}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = vtk.vtkPNGWriter()
+    writer.SetFileName(str(path))
+    writer.SetInputConnection(to_image.GetOutputPort())
+    writer.Write()
+    window.Finalize()
+
+    _trim(path, _hex_to_rgb(t["surface"]))
+    print(f"  {path}  ({len(failures)} failures, {len(advisories)} advisory)")
+    return path
+
 
 if __name__ == "__main__":
     main(sys.argv)
