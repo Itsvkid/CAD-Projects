@@ -134,6 +134,146 @@ DFM check says so:
 MIN BEND RADIUS: 2024-T3 needs 4T (is 3.00, needs 6.40)
 ```
 
+## Load case: the bracket does not survive 9g
+
+The section above sizes the part to be *foldable*. Nothing so far asks
+whether it can carry anything. This does: an avionics box on the upright at
+a 9g crash factor, which is the case that sizes brackets like this one --
+the 1g weight is trivial and never governs.
+
+    2.0 kg x 9.81 x 9 = 176.6 N, pulling the upright away from the base
+
+Fixed at the two base bolt holes, loaded at the two upright holes, solved
+with CalculiX through FreeCAD's FEM stack. Both ship inside FreeCAD.app, so
+this needs no GUI and no separate solver install:
+
+```bash
+/Applications/FreeCAD.app/Contents/MacOS/FreeCAD -c fea.py < /dev/null
+python fea_figures.py     # base environment
+```
+
+### One element through the wall is not a mesh
+
+The first attempt used 2.0 mm elements on 1.6 mm sheet. That puts **less
+than one element through the thickness**, and a single element cannot carry
+a linear stress gradient across itself -- bending is precisely what it
+cannot represent. gmsh returned nonpositive Jacobians and CalculiX refused
+the job outright (exit 201), which was the right answer. The same happened
+at 1.6 mm.
+
+Bending needs at least two quadratic elements through thickness, so the
+element size is capped at **0.8 mm before any convergence argument begins**.
+Runs coarser than that are reported below but are drawn hollow in the figure
+and excluded from every conclusion. (The 1.2 mm case is genuinely marginal:
+it was rejected on one run and solved on the next, because gmsh does not
+produce an identical mesh each time.)
+
+### What converged, and what did not
+
+| element size | through wall | nodes | peak vM | 99th pct | deflection |
+|---|---|---|---|---|---|
+| 1.6 mm | 1.00 | 38,679 | *rejected* | — | — |
+| 1.2 mm | 1.33 | 61,278 | 456.8 | 197.6 | 4.8089 |
+| 0.9 mm | 1.78 | 117,809 | 484.6 | 197.4 | 4.8177 |
+| **0.8 mm** | **2.00** | **172,832** | **480.3** | **197.6** | **4.8253** |
+| **0.7 mm** | **2.29** | **226,641** | **539.1** | **197.2** | **4.8280** |
+| **0.6 mm** | **2.67** | **333,230** | **545.0** | **196.7** | **4.8311** |
+
+Across the three usable meshes, over a 1.9x range of node count:
+
+- **deflection converges** -- +0.06% on the last refinement
+- **the 99th-percentile stress converges** -- −0.28%
+- **the peak stress does not** -- +12.2% then +1.1%, non-monotone, and
+  spread over 12% across the three
+
+![Mesh convergence](figures/fea-convergence.png)
+
+### The peak is a boundary condition, not a stress
+
+Refining a mesh should make an answer settle. When one quantity settles and
+another climbs, the climbing one is usually not a property of the part. The
+peak node's *location* says exactly what is happening here:
+
+| element size | peak location (mm) | radius from bolt axis | hole |
+|---|---|---|---|
+| 0.9 mm | (45.49, 13.44, **0.00**) | **2.55** | +y |
+| 0.8 mm | (45.48, −14.42, **0.00**) | 2.89 | −y |
+| 0.7 mm | (45.66, 14.02, **0.00**) | **2.55** | +y |
+| 0.6 mm | (45.87, 14.40, **0.00**) | **2.55** | +y |
+
+Every peak sits at z = 0.00 exactly, at the bore radius of a constrained
+hole -- the **edge of the fixed constraint**. A fixed boundary condition
+applied to a face is mathematically singular at that face's boundary: the
+elastic solution has no finite stress there, so the discrete answer simply
+tracks element size and rises without limit forever. Refining further would
+not help; it would produce a larger number and no more information.
+
+And it **hops between the two holes** run to run. A real stress
+concentration stays where the geometry puts it. This one goes wherever the
+mesher happens to place the worst node, which is a second and independent
+signature of a singularity.
+
+So the honest reading is that **545 MPa is not a stress**. Quoting it would
+be wrong in both directions at once: it overstates the severity 2.8-fold,
+while the number that actually condemns the part is far less dramatic.
+
+### The verdict
+
+| | |
+|---|---|
+| Converged bulk stress (99th pct) | **196.7 MPa** |
+| 5052-H32 yield | 193 MPa |
+| **Margin of safety** | **−1.9%** |
+| Converged deflection | 4.83 mm |
+
+**The bracket is marginal at 9g and fails, but narrowly** -- it yields, it
+does not tear. That is a different engineering conclusion from the 2.8x
+overstress a naive reading of the peak would have given, and arriving at it
+is the entire reason for running a convergence study rather than one mesh.
+
+Independently, `beam_check.py` puts the nominal bending stress at
+**235.1 MPa** on the same load case, from closed-form beam theory with no
+solver involved -- also past yield, from a completely different direction.
+Two methods that share no code agreeing that the part does not make it is
+worth more than either one alone.
+
+That hand calculation also surfaced something a single-cantilever
+idealisation would miss: **most of the tip movement is the base rotating,
+not the upright bending**, because the base reacts the moment back to the
+bolts through the same 1.6 mm of material. Its 6.82 mm prediction is 41%
+above the FEA's 4.83 mm, in the conservative direction a 1D model should
+err, because it ignores the load spreading across the 50 mm width.
+
+### What this analysis is not
+
+- **Linear elastic.** Past yield, the real part redistributes stress and the
+  linear answer overstates it. A margin this thin (−1.9%) is exactly where
+  that matters, so "marginal fail" is the defensible claim, not a precise
+  one.
+- **Percentiles are a proxy.** The 99th percentile is taken over nodes, and
+  node density is not uniform, so it is weighted toward refined regions. Its
+  stability to 0.3% across a 1.9x node-count range is empirical evidence the
+  bias is small here -- not a proof that it is.
+- **No bolt model.** The constraint is a rigidly fixed bore. Real fasteners
+  are compliant and load a bearing surface, which is both what softens the
+  singularity in reality and what would be needed to check bearing and
+  tear-out at the holes.
+- **One direction.** Only the case that opens the bend was run. A real
+  qualification sweeps the load through all axes.
+- **Springback still unmodelled**, as noted below -- the analysis assumes
+  the part comes off the press at nominal geometry.
+
+### The fix, not run here
+
+The section is the problem: stress goes as 1/t², so **2.0 mm gauge drops the
+nominal from 235 to 150 MPa**, turning a −1.9% margin into **+28%** for 25%
+more mass -- and halves the deflection, from 6.8 mm to 3.5 mm, which on a
+bracket carrying avionics may matter more than the stress does. The
+alternative is a stiffening rib or a formed flange along the upright's free
+edges, which buys the margin through geometry instead of mass. Choosing
+between them is a real design decision, and it is the natural next iteration
+of this project.
+
 ## Files
 
 | | |
@@ -142,6 +282,11 @@ MIN BEND RADIUS: 2024-T3 needs 4T (is 3.00, needs 6.40)
 | `bracket.py` | Parametric formed solid and flat pattern. |
 | `drawing.py` | Detail sheet: formed views, flat pattern, bend table, notes. |
 | `test_sheet_metal.py` | 30 tests. |
+| `fea.py` | Headless CalculiX analysis and the mesh convergence sweep. Run under FreeCAD. |
+| `beam_check.py` | Closed-form beam theory, the FEA's independent reference. No solver. |
+| `fea_figures.py` | The convergence figure. |
+| `test_beam_check.py` | 18 tests, including the FEA cross-checks. |
+| `fea_results.json` | Sweep output. |
 | `exports/` | `bracket-formed.step`, `bracket-flat.step`, `bracket-flat.dxf` |
 | `drawings/SMB-001-bracket.png` | The drawing. |
 
@@ -160,9 +305,12 @@ The DXF is the flat profile only — the shape a laser or waterjet cuts.
   drawing does not tell the shop by how much.
 - **Grain direction is a note, not a constraint.** Note 7 asks for bending
   with the grain; the geometry has no concept of it, so nothing enforces it.
-- **Static design only.** No FEA — the section is not sized against a load
-  case, it is sized to be foldable. A real bracket would be checked for
-  stiffness and for bearing at the fastener holes.
+- **Sized, but not resized.** The 9g load case above shows the bracket
+  yielding with a −1.9% margin. The fix is scoped (2.0 mm gauge, or a
+  stiffening rib) and not yet built — the part in `exports/` is still the
+  failing one.
+- **Bearing and tear-out at the holes are unchecked.** That needs a
+  compliant bolt model, not the rigidly fixed bore used here.
 
 ---
 

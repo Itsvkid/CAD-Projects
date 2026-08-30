@@ -1,0 +1,94 @@
+{
+  "force_n": 176.58,
+  "yield_mpa": 193.0,
+  "equipment_kg": 2.0,
+  "load_factor_g": 9.0,
+  "runs": [
+    {
+      "mesh_mm": 1.6,
+      "nodes": 38679,
+      "elements": 19178,
+      "through_wall": 1.0
+    },
+    {
+      "mesh_mm": 1.2,
+      "nodes": 61278,
+      "elements": 30380,
+      "through_wall": 1.33,
+      "max_von_mises_mpa": 456.8,
+      "max_displacement_mm": 4.8089,
+      "p95_von_mises_mpa": 183.08,
+      "p99_von_mises_mpa": 197.64,
+      "p99.9_von_mises_mpa": 351.27,
+      "peak_location_mm": [
+        44.83,
+        -14.11,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.9,
+      "nodes": 117809,
+      "elements": 62018,
+      "through_wall": 1.78,
+      "max_von_mises_mpa": 484.61,
+      "max_displacement_mm": 4.8177,
+      "p95_von_mises_mpa": 182.01,
+      "p99_von_mises_mpa": 197.42,
+      "p99.9_von_mises_mpa": 347.59,
+      "peak_location_mm": [
+        45.49,
+        13.44,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.8,
+      "nodes": 172832,
+      "elements": 95967,
+      "through_wall": 2.0,
+      "max_von_mises_mpa": 480.3,
+      "max_displacement_mm": 4.8253,
+      "p95_von_mises_mpa": 181.18,
+      "p99_von_mises_mpa": 197.55,
+      "p99.9_von_mises_mpa": 336.26,
+      "peak_location_mm": [
+        45.48,
+        -14.42,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.7,
+      "nodes": 226641,
+      "elements": 126902,
+      "through_wall": 2.29,
+      "max_von_mises_mpa": 539.1,
+      "max_displacement_mm": 4.828,
+      "p95_von_mises_mpa": 180.92,
+      "p99_von_mises_mpa": 197.21,
+      "p99.9_von_mises_mpa": 334.0,
+      "peak_location_mm": [
+        45.66,
+        14.02,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.6,
+      "nodes": 333230,
+      "elements": 191191,
+      "through_wall": 2.67,
+      "max_von_mises_mpa": 545.0,
+      "max_displacement_mm": 4.8311,
+      "p95_von_mises_mpa": 180.44,
+      "p99_von_mises_mpa": 196.66,
+      "p99.9_von_mises_mpa": 322.83,
+      "peak_location_mm": [
+        45.87,
+        14.4,
+        0.0
+      ]
+    }
+  ]
+}
