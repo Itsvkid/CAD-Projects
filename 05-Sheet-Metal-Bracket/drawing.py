@@ -141,8 +141,16 @@ def _formed_outline(bracket, scale):
     return [(x * scale, y * scale) for x, y in points]
 
 
-def bracket_drawing(bracket, path=None, scale_denominator=1, date=None):
-    """One sheet: formed elevation and plan, flat pattern, bend table."""
+def bracket_drawing(bracket, path=None, scale_denominator=1, date=None,
+                    drawing_number="SMB-001"):
+    """One sheet: formed elevation and plan, flat pattern, bend table.
+
+    `drawing_number` is a parameter because changing gauge is a drawing
+    re-issue, not a quiet edit: 2.0 mm sheet has a different bend
+    deduction, so the blank changes length (101.52 -> 100.97 mm) and the
+    developed hole positions move with it. A shop cutting to the old
+    sheet would make the wrong blank.
+    """
     s = 1.0 / scale_denominator
     a, b = bracket.base_length, bracket.upright_length
     t, w = bracket.thickness, bracket.width
@@ -294,7 +302,7 @@ def bracket_drawing(bracket, path=None, scale_denominator=1, date=None):
     for index, line in enumerate(right):
         ax.text(bx + TITLE_W * 0.545, by + TITLE_H * 0.50 - index * 4.0, line,
                 fontsize=5.4, color=INK, family="monospace", zorder=10)
-    footer = (f"DRAWN {DRAWN_BY}   DWG SMB-001   SCALE 1:{scale_denominator}"
+    footer = (f"DRAWN {DRAWN_BY}   DWG {drawing_number}   SCALE 1:{scale_denominator}"
               f"   UNITS mm")
     if date:
         footer += f"   {date}"
@@ -312,3 +320,9 @@ def bracket_drawing(bracket, path=None, scale_denominator=1, date=None):
 if __name__ == "__main__":
     print("Sheet-metal bracket drawing")
     bracket_drawing(AngleBracket(), "drawings/SMB-001-bracket.png")
+    # The redesign trade_study.py selects: 2.0 mm gauge, +28% margin at 9g.
+    # A separate sheet rather than an edit of the first, because the two
+    # blanks differ and both parts exist in the repository.
+    bracket_drawing(AngleBracket(thickness=2.0),
+                    "drawings/SMB-002-bracket-2mm.png",
+                    drawing_number="SMB-002")

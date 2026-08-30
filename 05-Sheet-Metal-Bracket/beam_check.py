@@ -117,6 +117,55 @@ def bracket_estimate() -> BeamEstimate:
                     WIDTH_MM, THICKNESS_MM)
 
 
+
+# --- Section properties, for the redesign trade study -------------------
+#
+# Both legs of the bracket carry the same moment through the same section,
+# so a change that stiffens only one of them moves the part's margin not at
+# all. That is not obvious until the two are written down side by side,
+# and it is what rules out the otherwise attractive option of folding
+# flanges up the upright's free edges.
+
+
+def plate_section(width_mm: float, thickness_mm: float) -> tuple:
+    """Second moment and section modulus of a flat strip in bending about
+    the axis across its width. Returns (I_mm4, Z_mm3)."""
+    second_moment = width_mm * thickness_mm ** 3 / 12.0
+    return second_moment, second_moment / (thickness_mm / 2.0)
+
+
+def channel_section(width_mm: float, thickness_mm: float,
+                    flange_height_mm: float) -> tuple:
+    """The same strip with both side edges folded into flanges of
+    `flange_height_mm`, forming a channel. Returns (I_mm4, Z_mm3).
+
+    The flanges sit far from the neutral axis, which is the whole point:
+    they contribute through A*d^2 rather than through their own small
+    I, and a 12 mm flange on 1.6 mm sheet is worth roughly seven times
+    the plain strip's section modulus.
+    """
+    if flange_height_mm <= 0:
+        return plate_section(width_mm, thickness_mm)
+
+    web_area = width_mm * thickness_mm
+    web_centroid = thickness_mm / 2.0
+    flange_area = flange_height_mm * thickness_mm
+    flange_centroid = thickness_mm + flange_height_mm / 2.0
+
+    total_area = web_area + 2 * flange_area
+    neutral_axis = (web_area * web_centroid
+                    + 2 * flange_area * flange_centroid) / total_area
+
+    second_moment = (
+        width_mm * thickness_mm ** 3 / 12.0
+        + web_area * (web_centroid - neutral_axis) ** 2
+        + 2 * (thickness_mm * flange_height_mm ** 3 / 12.0
+               + flange_area * (flange_centroid - neutral_axis) ** 2))
+
+    extreme_fibre = max(neutral_axis,
+                        thickness_mm + flange_height_mm - neutral_axis)
+    return second_moment, second_moment / extreme_fibre
+
 def main() -> None:
     e = bracket_estimate()
     kt = kt_hole_in_plate(HOLE_DIAMETER_MM, WIDTH_MM)

@@ -42,8 +42,18 @@ import Part
 from femmesh.gmshtools import GmshTools
 from femtools.ccxtools import FemToolsCcx
 
-STEP = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                    "exports", "bracket-formed.step")
+HERE = os.path.dirname(os.path.abspath(__file__))
+# Which variant to solve, so the same analysis runs on the redesign without
+# being edited. See trade_study.py for where the 2 mm arm comes from.
+STEP = os.environ.get("BRACKET_STEP",
+                      os.path.join(HERE, "exports", "bracket-formed.step"))
+OUT_JSON = os.environ.get("FEA_OUT", os.path.join(HERE, "fea_results.json"))
+HOLE_RADIUS_MM = 2.55
+# Wall thickness of the variant being solved. Only used to report how
+# many elements sit through the wall, but that number decides which
+# runs are trustworthy, so it must track the geometry rather than
+# stay pinned to the baseline part.
+WALL_MM = float(os.environ.get("BRACKET_WALL_MM", "1.6"))
 
 # 5052-H32. Yield is the number that matters for a bracket -- permanent set
 # in a mount is a failure even though nothing has parted.
@@ -61,8 +71,38 @@ FORCE_N = EQUIPMENT_KG * 9.81 * LOAD_FACTOR_G
 # trend but is not a believable answer.
 MESH_SIZES_MM = [1.6, 1.2, 0.9, 0.8, 0.7, 0.6]
 
-FIXED_FACES = ["Face13", "Face14"]     # base holes, bolted to structure
-LOADED_FACES = ["Face11", "Face12"]    # upright holes, equipment attaches
+def find_bolt_faces(shape):
+    """Locate the four bolt-hole bores by geometry, not by face index.
+
+    Face numbering happens to survive a thickness change on this part, but
+    relying on that is how this project lost two of its four holes once
+    already: a selector that silently picks the wrong face produces a model
+    that builds, exports and passes, and is wrong. Bores are found instead
+    by what they are -- cylinders of the bolt radius -- and sorted by their
+    axis: the upright holes face along X, the base holes along Z.
+
+    Returns (loaded_face_names, fixed_face_names).
+    """
+    along_x, along_z = [], []
+    for index, face in enumerate(shape.Faces, start=1):
+        surface = face.Surface
+        if type(surface).__name__ != "Cylinder":
+            continue
+        if abs(surface.Radius - HOLE_RADIUS_MM) > 0.05:
+            continue                      # a bend fillet, not a bolt hole
+        axis = surface.Axis
+        name = f"Face{index}"
+        if abs(axis.x) > 0.9:
+            along_x.append(name)
+        elif abs(axis.z) > 0.9:
+            along_z.append(name)
+
+    if len(along_x) != 2 or len(along_z) != 2:
+        raise RuntimeError(
+            f"expected two upright and two base bores, found "
+            f"{len(along_x)} and {len(along_z)} -- the geometry is not the "
+            "bracket this analysis is set up for")
+    return along_x, along_z
 
 
 def solve(mesh_mm: float) -> dict:
@@ -86,12 +126,14 @@ def solve(mesh_mm: float) -> dict:
     material.Material = properties
     analysis.addObject(material)
 
+    loaded_faces, fixed_faces = find_bolt_faces(part.Shape)
+
     fixed = ObjectsFem.makeConstraintFixed(doc, "FixedBaseHoles")
-    fixed.References = [(part, f) for f in FIXED_FACES]
+    fixed.References = [(part, f) for f in fixed_faces]
     analysis.addObject(fixed)
 
     force = ObjectsFem.makeConstraintForce(doc, "EquipmentLoad")
-    force.References = [(part, f) for f in LOADED_FACES]
+    force.References = [(part, f) for f in loaded_faces]
     force.Force = f"{FORCE_N} N"
     force.DirectionVector = FreeCAD.Vector(-1, 0, 0)
     force.Reversed = False
@@ -118,7 +160,7 @@ def solve(mesh_mm: float) -> dict:
 
     result = {"mesh_mm": mesh_mm, "nodes": mesh.FemMesh.NodeCount,
               "elements": mesh.FemMesh.VolumeCount,
-              "through_wall": round(1.6 / mesh_mm, 2)}
+              "through_wall": round(WALL_MM / mesh_mm, 2)}
     for obj in doc.Objects:
         if not (hasattr(obj, "vonMises") and obj.vonMises):
             continue
@@ -152,6 +194,7 @@ def solve(mesh_mm: float) -> dict:
 def main():
     print(f"Bracket FEA — {EQUIPMENT_KG} kg equipment at {LOAD_FACTOR_G}g "
           f"= {FORCE_N:.1f} N")
+    print(f"  geometry: {os.path.basename(STEP)}, {WALL_MM} mm wall")
     print(f"5052-H32, yield {YIELD_MPA} MPa\n")
     print(f"  {'mesh':>6}{'thru wall':>11}{'nodes':>9}{'peak vM':>12}"
           f"{'p99':>10}{'disp':>10}   peak location")
@@ -170,12 +213,11 @@ def main():
               f"   at {r.get('peak_location_mm')}")
         sys.stdout.flush()
 
-    out = os.path.join(os.path.dirname(STEP), "..", "fea_results.json")
-    with open(os.path.abspath(out), "w") as handle:
+    with open(OUT_JSON, "w") as handle:
         json.dump({"force_n": FORCE_N, "yield_mpa": YIELD_MPA,
                    "equipment_kg": EQUIPMENT_KG, "load_factor_g": LOAD_FACTOR_G,
                    "runs": results}, handle, indent=2)
-    print(f"\n  wrote {os.path.abspath(out)}")
+    print(f"\n  wrote {OUT_JSON}")
 
 
 main()

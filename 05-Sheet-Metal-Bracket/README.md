@@ -263,16 +263,127 @@ err, because it ignores the load spreading across the 50 mm width.
 - **Springback still unmodelled**, as noted below -- the analysis assumes
   the part comes off the press at nominal geometry.
 
-### The fix, not run here
+### Where this leads
 
-The section is the problem: stress goes as 1/t², so **2.0 mm gauge drops the
-nominal from 235 to 150 MPa**, turning a −1.9% margin into **+28%** for 25%
-more mass -- and halves the deflection, from 6.8 mm to 3.5 mm, which on a
-bracket carrying avionics may matter more than the stress does. The
-alternative is a stiffening rib or a formed flange along the upright's free
-edges, which buys the margin through geometry instead of mass. Choosing
-between them is a real design decision, and it is the natural next iteration
-of this project.
+The section is the problem, and there is more than one way at it: more
+gauge, or more geometry. Choosing between them is a real design decision
+rather than an arithmetic one, and the next section does it — including the
+option that looks best and turns out to change nothing.
+
+## The redesign: what to change, and what turns out not to help
+
+The analysis above condemns the part. `trade_study.py` screens the ways of
+fixing it — **before** any of them is modelled, because ruling a candidate
+out with a section modulus costs seconds and building it then solving it
+costs hours.
+
+```bash
+python trade_study.py
+```
+
+One fact drives every row. **Both legs carry the same moment through the
+same section.** The load enters at the upright holes and bends the upright
+about the bend line; the base then reacts that same moment back to the bolts
+through the same 1.6 mm of material. The bracket has no single weak end.
+
+| arm | Z upright | Z base | σ upright | σ base | governs | margin | deflection | mass |
+|---|---|---|---|---|---|---|---|---|
+| 1.6 mm plain (as built) | 21.3 | 21.3 | 235 | 235 | upright | **−18%** | 6.82 | 21.5 g |
+| 1.6 mm + 12 mm upright flanges | 158.3 | 21.3 | 32 | 235 | **base** | **−18%** | 5.71 | 24.4 g (+14%) |
+| **2.0 mm gauge** | 33.3 | 33.3 | 150 | 150 | upright | **+28%** | 3.49 | 26.7 g (+24%) |
+| 2.5 mm gauge | 52.1 | 52.1 | 96 | 96 | upright | +100% | 1.79 | 33.2 g (+55%) |
+
+### The stiffener that does nothing
+
+Folding the upright's two free edges into flanges is the obvious move, and
+it is a good one in isolation: a 12 mm flange makes that leg **7.4× stiffer
+in bending**, dropping it from 235 to 32 MPa. The flanges sit far from the
+neutral axis and earn their keep through A·d², not through their own small I.
+
+It changes the bracket's margin by **nothing at all**. The governing section
+simply moves to the base, which is still 50 × 1.6 and still at 235 MPa. The
+part costs 14% more mass and fails at exactly the same load.
+
+![Redesign options](figures/redesign-trade.png)
+
+That is the figure worth reading: the flanged arm moves *right* without
+moving *up*. Stiffening the leg that was never governing buys nothing —
+which is only obvious once both legs are written down side by side, and is
+precisely what a screening pass is for.
+
+Wrapping flanges around **both** legs would work, but it is not a fold: a
+flange cannot run continuously around the 90° corner between the legs, so it
+needs a relief at the corner or a separate riveted gusset. That is a
+different part, not a different bend, and it is out of scope for a one-piece
+formed bracket rather than silently dropped.
+
+### Chosen: 2.0 mm gauge
+
+The lightest arm that passes. Stress goes as 1/t², so the next standard
+sheet thickness up takes the governing stress from 235 to 150 MPa for 24%
+more mass, and roughly halves the deflection — which on a bracket carrying
+avionics may matter more than the stress does.
+
+`AngleBracket(thickness=2.0)` builds it; DFM is clean (5052-H32 folds to 1T,
+so a 3 mm inside radius stays legal as gauge rises — true of this alloy, not
+of alloys generally, and there is a test for it). A gauge change is a
+**drawing re-issue**, not a quiet edit: the bend deduction changes, so the
+blank goes 101.52 → 100.97 mm and the developed hole positions move with it.
+A shop cutting to the old sheet would make the wrong blank. Issued as
+`drawings/SMB-002-bracket-2mm.png` rather than by editing SMB-001.
+
+### Verified, not just calculated
+
+```bash
+BRACKET_STEP=exports/bracket-formed-2mm.step BRACKET_WALL_MM=2.0 \
+  FEA_OUT=fea_results_2mm.json \
+  /Applications/FreeCAD.app/Contents/MacOS/FreeCAD -c fea.py < /dev/null
+```
+
+| element size | through wall | nodes | peak vM | 99th pct | deflection |
+|---|---|---|---|---|---|
+| 1.6 mm | 1.25 | 38,688 | *rejected* | — | — |
+| 1.2 mm | 1.67 | 65,451 | 296.3 | 126.5 | 2.444 |
+| **0.9 mm** | **2.22** | **137,483** | 337.6 | **126.5** | **2.454** |
+| **0.8 mm** | **2.50** | **182,682** | 337.7 | **126.8** | **2.456** |
+| **0.7 mm** | **2.86** | **265,663** | 402.8 | **126.1** | **2.457** |
+| 0.6 mm | 3.33 | 413,104 | *crashed* | — | — |
+
+The 0.6 mm case died with SIGSEGV at 413k nodes — this machine has 8 GB, and
+that is a limit of the hardware rather than of the model. Reported rather
+than dropped, because a sweep that silently stops at its finest point looks
+identical to one that converged.
+
+The same two behaviours as the baseline: deflection and bulk stress
+converge, the peak does not, and it stays pinned to the edge of the fixed
+constraint. **The redesign does not fix the singularity, and should not — it
+belongs to the boundary condition, not to the part.**
+
+| | 1.6 mm (as built) | 2.0 mm (chosen) |
+|---|---|---|
+| Converged bulk stress | 196.7 MPa | **126.1 MPa** |
+| Margin against 193 MPa yield | **−2%** | **+53%** |
+| Converged deflection | 4.83 mm | **2.46 mm** |
+| Mass | 21.5 g | 26.7 g |
+
+### Why one solve was enough
+
+Every arm was ranked by beam theory and only the winner was solved. That is
+only legitimate if the beam model's error does not move with the thing being
+changed — and it does not:
+
+| gauge | hand calculation | FEA (99th pct) | ratio |
+|---|---|---|---|
+| 1.6 mm | 235.1 MPa | 196.7 MPa | 0.837 |
+| 2.0 mm | 150.4 MPa | 126.1 MPa | 0.838 |
+
+The hand calculation reads **16% high at both gauges, agreeing to 0.2 of a
+percentage point** across a 25% thickness change. Beam theory has no 3D load
+spreading, so it *should* read high against the bulk field; what makes the
+screen trustworthy is that it reads high by the same amount either side of
+the change. A test pins that calibration — if it drifts, the screen has
+stopped being safe and every arm needs its own solve before anything is
+recommended.
 
 ## Files
 
@@ -286,6 +397,10 @@ of this project.
 | `beam_check.py` | Closed-form beam theory, the FEA's independent reference. No solver. |
 | `fea_figures.py` | The convergence figure. |
 | `test_beam_check.py` | 18 tests, including the FEA cross-checks. |
+| `trade_study.py` | Screens the redesign options, and checks the screen against the solves. |
+| `test_trade_study.py` | 18 tests. |
+| `drawings/SMB-002-bracket-2mm.png` | The redesign's drawing. Different blank, so a new sheet. |
+| `fea_results_2mm.json` | The redesign's sweep. |
 | `fea_results.json` | Sweep output. |
 | `exports/` | `bracket-formed.step`, `bracket-flat.step`, `bracket-flat.dxf` |
 | `drawings/SMB-001-bracket.png` | The drawing. |
@@ -305,10 +420,12 @@ The DXF is the flat profile only — the shape a laser or waterjet cuts.
   drawing does not tell the shop by how much.
 - **Grain direction is a note, not a constraint.** Note 7 asks for bending
   with the grain; the geometry has no concept of it, so nothing enforces it.
-- **Sized, but not resized.** The 9g load case above shows the bracket
-  yielding with a −1.9% margin. The fix is scoped (2.0 mm gauge, or a
-  stiffening rib) and not yet built — the part in `exports/` is still the
-  failing one.
+- **The default is still the failing part.** `AngleBracket()` builds the
+  1.6 mm bracket that SMB-001 describes and the FEA condemns. The redesign
+  is built, solved and drawn beside it rather than replacing it, because the
+  1.6 mm part is the subject of the analysis above and re-defaulting would
+  invalidate every figure quoted against it. Choosing to ship 2.0 mm is a
+  release decision, not a code change.
 - **Bearing and tear-out at the holes are unchecked.** That needs a
   compliant bolt model, not the rigidly fixed bore used here.
 

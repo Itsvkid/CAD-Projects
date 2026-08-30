@@ -139,12 +139,81 @@ def convergence_figure(data, path, theme="light"):
     return path
 
 
+
+def trade_figure(results, path, theme="light"):
+    """Margin against mass for each redesign arm.
+
+    Plotted this way because the trade is mass for margin, and the arm that
+    matters is the one that moves right without moving up: folding flanges
+    up the upright buys seven times the section in the leg that was never
+    governing, and the bracket stays exactly as weak as it was.
+    """
+    t = THEMES[theme]
+    fig, ax = plt.subplots(figsize=(7.4, 4.6))
+    fig.patch.set_facecolor(t["surface"])
+    ax.set_facecolor(t["surface"])
+
+    ax.axhspan(-100, 0, color=t["bar"], alpha=0.13, zorder=0)
+    ax.axhline(0, color=t["ink"], linestyle=":", linewidth=1.4, zorder=1,
+               label="yield")
+
+    # The two failing arms sit at the same margin by construction, which is
+    # the point of the figure -- so their labels have to be pulled apart by
+    # hand or they land on top of each other.
+    offsets = [(11, 8), (11, -18), (11, -4), (11, -4)]
+    for r, offset in zip(results, offsets):
+        passes = r.margin > 0
+        ax.scatter(r.mass_g, r.margin * 100,
+                   s=110, zorder=3,
+                   color=t["accent"] if passes else "none",
+                   edgecolors=t["accent"] if passes else t["ink_muted"],
+                   linewidths=1.6)
+        ax.annotate(r.arm.label, (r.mass_g, r.margin * 100),
+                    textcoords="offset points", xytext=offset,
+                    fontsize=8.5, color=t["ink"])
+
+    baseline, flanged = results[0], results[1]
+    ax.annotate("", xy=(flanged.mass_g, flanged.margin * 100),
+                xytext=(baseline.mass_g, baseline.margin * 100),
+                arrowprops=dict(arrowstyle="->", color=t["ink_muted"],
+                                linewidth=1.3, linestyle="--"))
+    ax.annotate(f"+{(flanged.mass_g/baseline.mass_g-1)*100:.0f}% mass, "
+                "identical margin",
+                xy=((baseline.mass_g + flanged.mass_g) / 2,
+                    baseline.margin * 100),
+                textcoords="offset points", xytext=(-52, 16),
+                fontsize=8.5, color=t["ink_muted"])
+
+    ax.set_xlabel("Mass (g)", color=t["ink"])
+    ax.set_ylabel("Margin of safety (%)", color=t["ink"])
+    ax.set_title("Redesign options at 9g", color=t["ink"], loc="left")
+    ax.grid(True, color=t["grid"], linewidth=0.7, zorder=0)
+    ax.tick_params(colors=t["ink_muted"])
+    for spine in ax.spines.values():
+        spine.set_color(t["grid"])
+    ax.set_xlim(19, 39)
+    ax.set_ylim(-42, 118)
+    ax.legend(fontsize=8, facecolor=t["surface"], edgecolor=t["grid"],
+              labelcolor=t["ink"], loc="upper left")
+
+    fig.tight_layout()
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160, facecolor=t["surface"])
+    plt.close(fig)
+    return path
+
 def main() -> None:
     data = json.loads(Path("fea_results.json").read_text())
+    from trade_study import ARMS, evaluate
+    baseline = evaluate(ARMS[0])
+    results = [baseline] + [evaluate(a, baseline.mass_g) for a in ARMS[1:]]
+
     for theme in ("light", "dark"):
         suffix = "-dark" if theme == "dark" else ""
         print("wrote", convergence_figure(
             data, f"figures/fea-convergence{suffix}.png", theme))
+        print("wrote", trade_figure(
+            results, f"figures/redesign-trade{suffix}.png", theme))
 
 
 if __name__ == "__main__":

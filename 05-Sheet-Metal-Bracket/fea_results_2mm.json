@@ -1,0 +1,85 @@
+{
+  "force_n": 176.58,
+  "yield_mpa": 193.0,
+  "equipment_kg": 2.0,
+  "load_factor_g": 9.0,
+  "runs": [
+    {
+      "mesh_mm": 1.6,
+      "nodes": 38688,
+      "elements": 19141,
+      "through_wall": 1.25
+    },
+    {
+      "mesh_mm": 1.2,
+      "nodes": 65451,
+      "elements": 33591,
+      "through_wall": 1.67,
+      "max_von_mises_mpa": 296.3,
+      "max_displacement_mm": 2.4443,
+      "p95_von_mises_mpa": 116.09,
+      "p99_von_mises_mpa": 126.54,
+      "p99.9_von_mises_mpa": 222.95,
+      "peak_location_mm": [
+        45.7,
+        -14.11,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.9,
+      "nodes": 137483,
+      "elements": 76600,
+      "through_wall": 2.22,
+      "max_von_mises_mpa": 337.65,
+      "max_displacement_mm": 2.4537,
+      "p95_von_mises_mpa": 115.4,
+      "p99_von_mises_mpa": 126.51,
+      "p99.9_von_mises_mpa": 215.06,
+      "peak_location_mm": [
+        45.49,
+        13.44,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.8,
+      "nodes": 182682,
+      "elements": 102693,
+      "through_wall": 2.5,
+      "max_von_mises_mpa": 337.68,
+      "max_displacement_mm": 2.4557,
+      "p95_von_mises_mpa": 115.4,
+      "p99_von_mises_mpa": 126.77,
+      "p99.9_von_mises_mpa": 218.62,
+      "peak_location_mm": [
+        45.7,
+        14.11,
+        0.0
+      ]
+    },
+    {
+      "mesh_mm": 0.7,
+      "nodes": 265663,
+      "elements": 156883,
+      "through_wall": 2.86,
+      "max_von_mises_mpa": 402.79,
+      "max_displacement_mm": 2.457,
+      "p95_von_mises_mpa": 114.51,
+      "p99_von_mises_mpa": 126.12,
+      "p99.9_von_mises_mpa": 210.75,
+      "peak_location_mm": [
+        45.66,
+        14.02,
+        2.0
+      ]
+    },
+    {
+      "mesh_mm": 0.6,
+      "nodes": 413104,
+      "elements": 252198,
+      "through_wall": 3.33
+    }
+  ],
+  "wall_mm": 2.0
+}
