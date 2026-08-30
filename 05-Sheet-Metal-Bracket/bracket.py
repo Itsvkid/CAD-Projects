@@ -157,12 +157,29 @@ class AngleBracket:
                                  sign * self.hole_pitch / 2.0)
                                 for sign in (1, -1)])
                    .hole(self.hole_diameter))
-        # Upright holes, drilled through the standing leg.
-        bracket = (bracket.faces(">X").workplane(centerOption="ProjectedOrigin")
-                   .pushPoints([(sign * self.hole_pitch / 2.0,
-                                 self.upright_length - self.hole_setback)
-                                for sign in (1, -1)])
-                   .hole(self.hole_diameter))
+        # Upright holes, cut at explicit global positions rather than on a
+        # face-relative workplane.
+        #
+        # The face-relative version was wrong twice over. It selected `>X`,
+        # which is the *base's* end face at x = 60 rather than the
+        # upright's outer face at x = 0. Correcting that to `<X` was still
+        # not enough: the resulting workplane put its origin at the top of
+        # the upright, not at the projected global origin, so the same
+        # local coordinates landed at z = 78 on a part only 45 tall.
+        #
+        # Both times CadQuery cut nothing and said nothing -- a hole that
+        # misses the solid is a no-op, not an error -- so the part built,
+        # exported, rendered and passed its tests with two of its four
+        # holes simply absent. Cutting an explicit cylinder removes the
+        # frame ambiguity that allowed it.
+        z = self.upright_length - self.hole_setback
+        for sign in (1, -1):
+            cutter = (cq.Workplane("YZ")
+                      .workplane(offset=-1.0)
+                      .center(sign * self.hole_pitch / 2.0, z)
+                      .circle(self.hole_diameter / 2.0)
+                      .extrude(self.thickness + 2.0))
+            bracket = bracket.cut(cutter)
         return bracket
 
     def flat_pattern(self) -> cq.Workplane:

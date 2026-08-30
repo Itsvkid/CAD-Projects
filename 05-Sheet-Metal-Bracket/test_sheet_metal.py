@@ -164,21 +164,55 @@ def test_formed_and_flat_are_valid_single_solids(bracket):
         assert BRepCheck_Analyzer(shape.val().wrapped).IsValid()
 
 
+def test_formed_and_flat_have_the_same_holes(bracket):
+    """Same part, same holes. This is the test that was missing.
+
+    The formed solid shipped for a while with two of its four holes
+    absent: the upright pair was cut on a face-relative workplane whose
+    frame put them outside the material, and CadQuery treats a hole that
+    misses the solid as a no-op rather than an error. Nothing complained,
+    and the volume check below passed anyway -- see its docstring.
+    """
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Cylinder
+
+    def hole_centres(shape):
+        found = []
+        for face in shape.Faces():
+            surface = BRepAdaptor_Surface(face.wrapped)
+            if surface.GetType() != GeomAbs_Cylinder:
+                continue
+            if abs(surface.Cylinder().Radius()
+                   - bracket.hole_diameter / 2) < 1e-6:
+                found.append(face.Center())
+        return found
+
+    formed = hole_centres(bracket.formed().val())
+    flat = hole_centres(bracket.flat_pattern().val())
+    assert len(formed) == 4, f"formed part has {len(formed)} holes, expected 4"
+    assert len(flat) == 4, f"flat pattern has {len(flat)} holes, expected 4"
+
+
 def test_forming_conserves_volume(bracket):
     """The independent check on the whole flat-pattern calculation.
 
     Bending moves metal, it does not create or destroy it, so the blank and
-    the formed part must have the same volume. They agree to about 1%,
-    which is the residual of modelling the neutral axis as a single
-    K-factor against the exact toroidal geometry of the fillet -- not an
-    error, but the approximation showing its size.
+    the formed part must have the same volume. They agree to 0.25%, which
+    is the residual of modelling the neutral axis as a single K-factor
+    against the exact toroidal geometry of the fillet.
 
-    A blank cut to the summed outside legs would be 5% oversize, so this
-    test would catch that mistake comfortably.
+    **This test used to pass at 1.07% with two holes missing from the
+    formed part.** The absent holes added material, the K-factor
+    approximation removed some, the two partly cancelled, and a 2%
+    tolerance swallowed what was left. A check is only as sharp as its
+    bound: this one was measuring the right quantity and was set too loose
+    to notice a defect twice its own residual. The bound is now 0.5%, and
+    `test_formed_and_flat_have_the_same_holes` covers what volume alone
+    cannot.
     """
     formed = bracket.formed().val().Volume()
     flat = bracket.flat_pattern().val().Volume()
-    assert formed == pytest.approx(flat, rel=0.02)
+    assert formed == pytest.approx(flat, rel=0.005)
 
     naive = ((bracket.base_length + bracket.upright_length)
              * bracket.width * bracket.thickness)
@@ -218,4 +252,4 @@ def test_the_generator_scales(thickness, radius, base, upright):
     assert unit.violations() == []
     assert unit.flat_length < base + upright
     assert unit.formed().val().Volume() == pytest.approx(
-        unit.flat_pattern().val().Volume(), rel=0.03)
+        unit.flat_pattern().val().Volume(), rel=0.01)

@@ -14,7 +14,7 @@ Python 3.13). No pyOCC environment needed — CadQuery brings its own kernel.
 ```bash
 python bracket.py        # build, run the DFM checks, export
 python drawing.py        # drawings/SMB-001-bracket.png
-python -m pytest -q      # 29 tests
+python -m pytest -q      # 30 tests
 ```
 
 ## Why this part, when the portfolio already has machined ones
@@ -68,15 +68,39 @@ destroy it**, so the blank and the formed part must have the same volume.
 
 | | |
 |---|---|
-| Formed solid | 8076.15 mm³ |
+| Formed solid | 8010.83 mm³ |
 | Flat blank | 7990.68 mm³ |
-| Difference | **+1.07%** |
+| Difference | **+0.25%** |
 
 That residual is the K-factor model showing its size — a single linear
 neutral axis against the exact toroidal geometry of the fillet — not an
 error. For contrast, a blank cut to the summed outside legs would be
 **5.12%** oversize, so the check discriminates comfortably between a right
 answer and the obvious wrong one. It runs as a test.
+
+### This check was too loose, and it hid a defect
+
+It used to read **1.07%**, and it passed — while the formed part was
+missing two of its four holes.
+
+The upright pair was cut on a face-relative workplane whose frame put them
+outside the material. CadQuery treats a hole that misses the solid as a
+no-op rather than an error, so nothing complained. The part built,
+exported, rendered, appeared on the site and passed every test with half
+its hole pattern absent.
+
+The volume check should have been the thing that caught it, and it is
+worth being precise about why it did not. The missing holes *added* about
+65 mm³ of material; the K-factor approximation *removed* about 85 mm³.
+The two partly cancelled, leaving 1.07% — comfortably inside a bound set
+at 2%.
+
+So the check was measuring the right quantity and was set roughly four
+times looser than the residual it was measuring. That is enough slack to
+absorb a defect twice the size of the thing the test exists to detect.
+The bound is now 0.5%, and a separate test counts holes on both solids,
+because a volume comparison cannot tell material that was never removed
+from material that was never there.
 
 ## Design for manufacture
 
@@ -117,7 +141,7 @@ MIN BEND RADIUS: 2024-T3 needs 4T (is 3.00, needs 6.40)
 | `sheet_metal.py` | Forming arithmetic, material table, DFM rules. No CAD dependency. |
 | `bracket.py` | Parametric formed solid and flat pattern. |
 | `drawing.py` | Detail sheet: formed views, flat pattern, bend table, notes. |
-| `test_sheet_metal.py` | 29 tests. |
+| `test_sheet_metal.py` | 30 tests. |
 | `exports/` | `bracket-formed.step`, `bracket-flat.step`, `bracket-flat.dxf` |
 | `drawings/SMB-001-bracket.png` | The drawing. |
 
