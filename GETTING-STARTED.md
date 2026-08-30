@@ -428,3 +428,36 @@ git commit -m "Generate hydraulic actuator CAD model (B737-class)"
 **Portfolio value:** High  
 
 **Next step:** Install CadQuery + run generator. Let's go! 🛠️
+
+
+## Running the tests
+
+```bash
+python run_tests.py     # all 134, across both environments
+```
+
+These five projects do not share a dependency set. Projects 01, 02 and 05
+build on CadQuery; 03 and 04 build on pythonocc, which lives in a separate
+conda environment because the two do not coexist comfortably here. **No
+single interpreter can import both**, so `run_tests.py` dispatches each
+project to the one it needs and adds up what actually ran.
+
+Bare `pytest` at the root also works now — it runs whatever the current
+interpreter supports and prints which projects it skipped and why. It used
+to abort collection entirely and report zero tests while all 134 passed
+perfectly well per project, which is a worse failure than a red one.
+
+| Project | Backend | Tests |
+|---|---|---|
+| 01 Hydraulic Actuator | CadQuery | 54 |
+| 02 Gearbox Family | CadQuery | **none — see below** |
+| 03 Thermal Duct | pythonocc | 37 |
+| 04 DFM Optimizer | pythonocc | 14 |
+| 05 Sheet-Metal Bracket | CadQuery | 29 |
+
+**Project 02 has no test suite.** It is the project that has had the most
+defects found in it — a mirrored involute profile that produced an invalid
+solid, a housing that did not enclose its own gear, bearing bosses running
+through the gears — and every one of those fixes is currently held in place
+by nothing but the code being correct today. It is the clearest remaining
+gap in this repository.
