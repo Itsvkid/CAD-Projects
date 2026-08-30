@@ -468,10 +468,28 @@ class GearboxDesign:
         # exists before it is used.
         z = self.boss_height_mm
 
+        # Phase the gear so its teeth interleave with the pinion's rather
+        # than collide with them. Both profiles are drawn with a tooth
+        # centred on their own +X axis, so the pinion always presents a
+        # tooth toward the gear. Whether the gear presents a tooth or a
+        # space back depends on parity: with an even tooth count it also
+        # has one at 180 deg, pointing straight at the pinion's, and the
+        # two solids overlap by 424 mm3 -- 2.1% of the pinion -- in the
+        # exported assembly. Half a tooth pitch puts a space there instead.
+        # An odd count already presents a space and must NOT be rotated;
+        # doing so causes the same clash it would otherwise avoid.
+        self.mesh_phase_deg = (360.0 / (2 * self.gear_teeth)
+                               if self.gear_teeth % 2 == 0 else 0.0)
+
         asm = cq.Assembly()
         asm.add(housing, name="housing", color=cq.Color("gray50"))
         pinion_positioned = pinion.translate((0, 0, z))
         gear_positioned = gear.translate((self.center_distance_mm, 0, z))
+        if self.mesh_phase_deg:
+            gear_positioned = gear_positioned.rotate(
+                (self.center_distance_mm, 0, 0),
+                (self.center_distance_mm, 0, 1),
+                self.mesh_phase_deg)
         asm.add(pinion_positioned, name="pinion", color=cq.Color("gray30"))
         asm.add(gear_positioned, name="gear", color=cq.Color("gray70"))
         return asm
@@ -554,6 +572,10 @@ class GearboxDesign:
                 "pockets -- a plain through-bore stands in for a bearing seat.",
                 "No cost estimate -- no real supplier/cost data source "
                 "available; fabricating one would misrepresent it as real.",
+                "total_mass_kg covers only the three modelled solids "
+                "(pinion, gear, housing). Bearings, seals and bolts are "
+                "listed with quantities but carry no mass, so the figure "
+                "is the manufactured mass, not the assembly's.",
             ],
         }
 

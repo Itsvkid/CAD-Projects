@@ -120,12 +120,80 @@ coplanar and still mesh) and the gears sit on top of them. Verified by
 pairwise boolean intersection across all five power ratings: zero volume
 shared between any two components.
 
+## Tests
+
+`python -m pytest test_gearbox_family.py` — **78 tests**. This project went
+longest without any, and it is the one where the most defects turned up.
+That is not a coincidence, and writing them found another.
+
+### The meshing teeth occupied the same space
+
+Both tooth profiles are drawn with a tooth centred on their own +X axis, so
+the pinion always presents a *tooth* toward the gear. Whether the gear
+presents a tooth or a gap back depends on parity — and with an even tooth
+count it has one at 180° too, pointing straight at the pinion's. The two
+solids overlapped by **424 mm³, 2.1% of the pinion's volume**.
+
+Every member of the shipped family has an even gear (70, 80, 90, 100, 110),
+so **every exported assembly had it**, and the STEP files have been
+regenerated. `assembly()` now offsets the gear by half a tooth pitch, which
+drives the interference to exactly zero.
+
+The parity matters and the rule is not "always rotate": an odd gear already
+presents a gap, and rotating it causes precisely the clash it was meant to
+avoid. Both directions are verified — 90 teeth clash unrotated and are clean
+at half pitch; 91 teeth are clean unrotated and clash at half pitch.
+
+The Status section below claimed pairwise clash checks. They evidently did
+not cover the gear-against-pinion pair in the assembled position, which is
+the one pair that has to be right for the thing to be a gearbox.
+
+### A valid solid is not a correct one
+
+The tests were checked by reintroducing the original involute sign error and
+confirming the suite goes red. It does — but only through *one* test, and
+the two obvious candidates both stay green:
+
+- **Tooth thickness at the pitch circle passes.** The mirrored sign gives
+  the correct half-angle of π/2N there. That is why the bug survived
+  whatever pitch-dimension checking it first met.
+- **`BRepCheck_Analyzer` validity passes too.** Mirrored, `psi_tip` reaches
+  0.125 rad on the 20-tooth pinion against a half-sector of 0.157 — the
+  tooth is the wrong shape, but its flanks still stay inside their own
+  sector, so the wire does not cross and the solid is genuinely valid. At
+  none of the tooth counts this project ships (18, 20, 35, 90) does the
+  mirrored profile self-intersect.
+
+Only checking that the half-angle *decreases* from root to tip catches it.
+Verifying that geometry is well-formed is a different question from
+verifying it is correct, and only the second one would have caught this.
+
+### What else is covered
+
+Involute geometry (closed counter-clockwise outline, every point between
+root and tip circles, one tip land per tooth, pointed teeth refused);
+contact ratio above 1.2 across the family and recomputed independently;
+the Lewis table returned exactly, interpolated, clamped and monotone;
+module rounding never downward; bearing bores always taking their shaft and
+always the smallest that does; torque from power and speed, shaft diameter
+from the torsion equation, and tooth stress under allowable for every
+family member; the housing a single valid solid with the gear inside its
+own footprint; and BOM masses recomputed from the solids' own volumes.
+
+One gap the tests documented rather than fixed: `total_mass_kg` covers only
+the three modelled solids. Bearings, seals and bolts are listed with
+quantities but carry no mass, so the figure is the manufactured mass, not
+the assembly's. That is now stated in `known_simplifications` — a test
+fails if the total starts excluding parts without saying so.
+
 ## Status
 
 **Current:** Implemented and run — gear sizing, bearing selection,
-housing, assembly and BOM generation all working. Geometry is verified
-by solid counts, `BRepCheck_Analyzer` validity, pairwise clash checks and
-the tooth-profile checks listed above, not by "the script didn't crash".
+housing, assembly and BOM generation all working, and now covered by 78
+tests. Geometry is verified by solid counts, `BRepCheck_Analyzer` validity,
+pairwise clash checks and the tooth-profile checks listed above, not by
+"the script didn't crash" — though see Tests above for a clash check that
+was claimed here and was not actually being made.
 
 Masses moved when the tooth profile was corrected, since the old solid
 was self-intersecting and under-measured: the 5 kW pinion went 0.032 →
@@ -142,6 +210,9 @@ generated before that fix is wrong.
   to grow walls — the natural next piece of work here.
 - Root fillets are a plain dedendum-circle arc, not the trochoid a
   hobbing cutter actually leaves.
+- The mesh phase is set for the assembly's static pose only. There is
+  no rotation, so nothing here checks that the teeth stay clear
+  *through* a mesh cycle — only that they do at one angle.
 
 ## Figures
 
